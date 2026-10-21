@@ -500,6 +500,7 @@ export default function App() {
                 onDuplicateRecipe={handleDuplicateRecipe}
                 onQuickScale={handleQuickScale}
                 onSeedData={handleSeedData}
+                onDeleteRecipe={handleDeleteRecipe}
                 onToast={showToast}
               />
             )}

@@ -13,6 +13,7 @@ import {
   Search,
   X,
   Tag,
+  Trash2,
 } from 'lucide-react';
 import { Recipe, AppData } from '../types';
 import { calculateSizeMetrics, formatCurrency, formatNumber } from '../utils/calculations';
@@ -26,6 +27,7 @@ interface RecipeListProps {
   onDuplicateRecipe: (recipe: Recipe) => void;
   onQuickScale: (recipe: Recipe) => void;
   onSeedData: () => void;
+  onDeleteRecipe?: (recipeId: string) => void;
   onToast?: (msg: string, type?: 'success' | 'info' | 'error') => void;
 }
 
@@ -37,10 +39,12 @@ export const RecipeList: React.FC<RecipeListProps> = ({
   onDuplicateRecipe,
   onQuickScale,
   onSeedData,
+  onDeleteRecipe,
   onToast,
 }) => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('todas');
+  const [deleteConfirmRecipe, setDeleteConfirmRecipe] = useState<Recipe | null>(null);
 
   const normalizeText = (text: string) =>
     text
@@ -277,13 +281,27 @@ export const RecipeList: React.FC<RecipeListProps> = ({
                       </h3>
                     </div>
 
-                    <button
-                      onClick={() => onOpenRecipe(rec)}
-                      className="w-8 h-8 rounded-lg bg-stone-50 dark:bg-stone-800 hover:bg-amber-100 dark:hover:bg-amber-900/40 flex items-center justify-center text-stone-400 hover:text-amber-700 dark:hover:text-amber-400 transition-colors shrink-0"
-                      title="Editar receita"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirmRecipe(rec);
+                        }}
+                        className="w-8 h-8 rounded-lg bg-stone-50 dark:bg-stone-800 hover:bg-rose-50 dark:hover:bg-rose-950/50 flex items-center justify-center text-stone-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
+                        title="Excluir receita"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        onClick={() => onOpenRecipe(rec)}
+                        className="w-8 h-8 rounded-lg bg-stone-50 dark:bg-stone-800 hover:bg-amber-100 dark:hover:bg-amber-900/40 flex items-center justify-center text-stone-400 hover:text-amber-700 dark:hover:text-amber-400 transition-colors"
+                        title="Editar receita"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Badges / Specs */}
@@ -390,17 +408,65 @@ export const RecipeList: React.FC<RecipeListProps> = ({
                     </button>
                   </div>
 
-                  <button
-                    onClick={() => onOpenRecipe(rec)}
-                    className="px-3.5 py-2 text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200/80 dark:border-amber-800/60 rounded-xl transition-colors flex items-center gap-1 min-h-[40px]"
-                  >
-                    <span>Editar</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setDeleteConfirmRecipe(rec)}
+                      className="px-2.5 py-2 text-xs font-semibold text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 rounded-xl transition-colors flex items-center gap-1 min-h-[40px]"
+                      title="Excluir receita"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Excluir</span>
+                    </button>
+
+                    <button
+                      onClick={() => onOpenRecipe(rec)}
+                      className="px-3.5 py-2 text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200/80 dark:border-amber-800/60 rounded-xl transition-colors flex items-center gap-1 min-h-[40px]"
+                    >
+                      <span>Editar</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Delete Recipe Confirmation Modal */}
+      {deleteConfirmRecipe && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-stone-900 rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-stone-200 dark:border-stone-800 space-y-4">
+            <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 font-display flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
+              <span>Excluir Receita?</span>
+            </h3>
+            <p className="text-sm text-stone-600 dark:text-stone-300 leading-relaxed">
+              Tem certeza que deseja apagar a receita <strong>&quot;{deleteConfirmRecipe.name}&quot;</strong>? Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmRecipe(null)}
+                className="px-4 py-2 text-xs font-semibold text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-colors min-h-[42px]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDeleteRecipe) {
+                    onDeleteRecipe(deleteConfirmRecipe.id);
+                  }
+                  setDeleteConfirmRecipe(null);
+                }}
+                className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors min-h-[42px] shadow-xs"
+              >
+                Confirmar Exclusão
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
