@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bolos • Encomendas e Receitas</title>
+<style>
+:root{--bg:#fff8f3;--card:#fff;--tx:#3b2a25;--mu:#8a7770;--ac:#d6457a;--acx:#fff;--bd:#f0ddd3;--ok:#2e9e5b;--wa:#e08a00;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1d1614;--card:#2a201d;--tx:#f5e9e4;--mu:#b39f97;--ac:#ef6b9b;--acx:#2a0f1b;--bd:#43332e}}
+:root[data-theme="dark"]{--bg:#1d1614;--card:#2a201d;--tx:#f5e9e4;--mu:#b39f97;--ac:#ef6b9b;--acx:#2a0f1b;--bd:#43332e}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;max-width:640px;margin:0 auto;padding:12px 14px 90px}
+h1{font-size:20px;margin:6px 0 12px}
+.tabs{display:flex;gap:8px;margin-bottom:12px}
+.tabs button{flex:1;padding:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;font-size:15px}
+.tabs button.on{background:var(--ac);color:var(--acx);border-color:var(--ac);font-weight:600}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:10px}
+.row{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.mu{color:var(--mu);font-size:14px}
+.tag{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid currentColor;white-space:nowrap}
+.pend{color:var(--wa)}.pronto{color:var(--ac)}.entregue{color:var(--ok)}
+.btn{border:0;background:var(--ac);color:var(--acx);padding:11px 16px;border-radius:10px;font-size:15px;font-weight:600}
+.btn.s{background:transparent;color:var(--ac);border:1px solid var(--ac);padding:6px 10px;font-size:13px;font-weight:500}
+.fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));box-shadow:0 4px 14px #0004;border-radius:99px;padding:14px 20px}
+label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
+input,select,textarea{width:100%;padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+textarea{min-height:90px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#form{display:none}
+.acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.warn{background:var(--card);border:1px dashed var(--wa);padding:10px;border-radius:10px;margin-bottom:10px;font-size:14px}
+pre{white-space:pre-wrap;font:inherit;margin:6px 0 0}
+.sum{display:flex;gap:8px;margin-bottom:12px}.sum div{flex:1;text-align:center}.sum b{display:block;font-size:20px}
+</style>
+</head>
+<body>
+<div id="toast" style="display:none;position:fixed;left:14px;right:14px;top:calc(10px + env(safe-area-inset-top,0px));z-index:9;background:var(--ac);color:var(--acx);padding:12px;border-radius:10px;font-size:14px"></div>
+<h1>🎂 Meus Bolos <small class="mu" style="font-weight:400">v5</small></h1>
+<div id="warn" class="warn" style="display:none">Sem conexão com o banco de dados: o que você lançar aqui não será salvo. Abra o link pelo Claude, logado, para sincronizar.</div>
+<div class="tabs"><button id="t1" class="on">Encomendas</button><button id="t2">Receitas</button></div>
+<div id="list"></div>
+<div id="form"></div>
+<button id="add" class="btn fab">+ Nova</button>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+function aviso(m){const el=$("toast");el.textContent=m;el.style.display="block";clearTimeout(aviso.t);aviso.t=setTimeout(()=>el.style.display="none",6000)}
+window.addEventListener("error",e=>aviso("Erro: "+e.message));
+window.addEventListener("unhandledrejection",e=>aviso("Erro: "+((e.reason&&(e.reason.message||e.reason.code))||e.reason)));
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const S={tab:"orders",orders:[],recipes:[],editing:null,db:null,filter:"abertas"};
+const TIPOS=["Bolo de aniversário","Bolo de casamento","Bolo no pote","Bolo caseiro","Naked cake","Cupcakes","Outro"];
+const TAM=["Único","Mini","Pequeno","Médio","Grande","Extra grande"];
+const SAB=["Fubá","Fubá com goiabada","Milho","Milho com requeijão","Cuca de banana","Cenoura"];
+const fmtD=d=>d?d.split("-").reverse().join("/"):"";
+const brl=v=>v!==""&&v!=null&&!isNaN(v)?Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}):"";
+const hoje=()=>new Date().toISOString().slice(0,10);
+const novoItem=()=>({tipo:TIPOS[0],tamanho:TAM[0],sabor:"",qtd:1});
+const itensDe=o=>o.itens&&o.itens.length?o.itens:[{tipo:o.tipo||TIPOS[0],tamanho:o.tamanho||TAM[0],sabor:o.sabor||"",qtd:1}];
+const itemTxt=it=>`${it.qtd>1?it.qtd+"× ":""}${it.tipo} • ${it.tamanho}${it.sabor?" • "+it.sabor:""}`;
+
+async function init(){
+  try{S.db=await claude.use("db")}catch(e){S.db=null}
+  if(!S.db){$("warn").style.display="block";render();return}
+  for(const k of ["orders","recipes"]){
+    S.db.collection(k).onSnapshot(s=>{S[k]=s.docs.map(d=>({id:d.id,...d.data()}));if(!S.editing)render()},
+      e=>{console.error(e);$("warn").style.display="block"});
+  }
+  render();
+}
+async function save(k,id,data){
+  if(!S.db){const i=S[k].findIndex(x=>x.id===id);const o={id,...data};i>=0?S[k][i]=o:S[k].push(o);return}
+  try{await S.db.collection(k).doc(id).set(data)}catch(e){aviso("Não foi possível salvar: "+(e.message||e.code))}
+}
+async function del(k,id){
+  if(S.cdel!==id){S.cdel=id;render();setTimeout(()=>{if(S.cdel===id){S.cdel=null;render()}},4000);return}
+  S.cdel=null;
+  if(!S.db){S[k]=S[k].filter(x=>x.id!==id);render();return}
+  try{await S.db.collection(k).doc(id).delete()}catch(e){aviso("Erro ao excluir")}
+}
+
+function render(){
+  $("t1").className=S.tab==="orders"?"on":"";$("t2").className=S.tab==="recipes"?"on":"";
+  $("form").style.display=S.editing?"block":"none";
+  $("list").style.display=S.editing?"none":"block";
+  $("add").style.display=S.editing?"none":"block";
+  $("add").textContent=S.tab==="orders"?"+ Encomenda":"+ Receita";
+  if(S.editing){renderForm();return}
+  S.tab==="orders"?renderOrders():renderRecipes();
+}
+function renderOrders(){
+  const all=[...S.orders].sort((a,b)=>(a.entrega||"9").localeCompare(b.entrega||"9"));
+  const abertas=all.filter(o=>o.status!=="entregue");
+  const list=S.filter==="abertas"?abertas:S.filter==="entregues"?all.filter(o=>o.status==="entregue").reverse():all;
+  const h=hoje();
+  const atras=abertas.filter(o=>o.entrega&&o.entrega<h).length;
+  const hj=abertas.filter(o=>o.entrega===h).length;
+  let html=`<div class="sum"><div class="card"><b>${abertas.length}</b><span class="mu">em aberto</span></div><div class="card"><b>${hj}</b><span class="mu">para hoje</span></div><div class="card"><b>${atras}</b><span class="mu">atrasadas</span></div></div>
+  <div class="tabs">${["abertas","entregues","todas"].map(f=>`<button data-f="${f}" class="${S.filter===f?"on":""}">${f[0].toUpperCase()+f.slice(1)}</button>`).join("")}</div>`;
+  if(!list.length)html+=`<p class="mu" style="text-align:center;margin-top:30px">Nenhuma encomenda por aqui.</p>`;
+  for(const o of list){
+    const late=o.status!=="entregue"&&o.entrega&&o.entrega<h;
+    html+=`<div class="card"><div class="row"><div><b>${esc(o.cliente)}</b>${itensDe(o).map(it=>`<div class="mu">🍰 ${esc(itemTxt(it))}</div>`).join("")}</div><span class="tag ${esc(o.status)}">${esc(o.status)}</span></div>
+    <div style="margin-top:6px">📅 <b>${fmtD(o.entrega)}${o.hora?" às "+esc(o.hora):""}</b>${late?' <span style="color:var(--wa)">(atrasada)</span>':""}</div>
+    ${o.telefone?`<div class="mu">📞 ${esc(o.telefone)}</div>`:""}
+    ${o.valor!==""&&o.valor!=null?`<div class="mu">💰 ${brl(o.valor)}${o.sinal?" • sinal "+brl(o.sinal):""}</div>`:""}
+    ${o.obs?`<pre class="mu">${esc(o.obs)}</pre>`:""}
+    <div class="acts"><button class="btn s" data-e="${o.id}">Editar</button>
+    <button class="btn s" data-w="${o.id}">Enviar WhatsApp</button>
+    <button class="btn s" data-p="${o.id}">PDF</button>
+    ${o.status==="pendente"?`<button class="btn s" data-s="pronto" data-id="${o.id}">Marcar pronto</button>`:""}
+    ${o.status!=="entregue"?`<button class="btn s" data-s="entregue" data-id="${o.id}">Entregue</button>`:""}
+    <button class="btn s" data-d="${o.id}">${S.cdel===o.id?"Confirmar exclusão":"Excluir"}</button></div></div>`;
+  }
+  $("list").innerHTML=html;
+}
+function renderRecipes(){
+  const l=[...S.recipes].sort((a,b)=>(a.nome||"").localeCompare(b.nome||""));
+  let html=l.length?"":`<p class="mu" style="text-align:center;margin-top:30px">Nenhuma receita ainda.</p>`;
+  for(const r of l){
+    html+=`<div class="card"><b>${esc(r.nome)}</b>${r.rendimento?`<div class="mu">Rende: ${esc(r.rendimento)}</div>`:""}
+    <details><summary class="mu" style="margin-top:6px">Ver receita</summary>
+    <b style="font-size:14px">Ingredientes</b><pre>${esc(r.ingredientes)}</pre>
+    <b style="font-size:14px">Modo de preparo</b><pre>${esc(r.preparo)}</pre></details>
+    <div class="acts"><button class="btn s" data-e="${r.id}">Editar</button><button class="btn s" data-d="${r.id}">${S.cdel===r.id?"Confirmar exclusão":"Excluir"}</button></div></div>`;
+  }
+  $("list").innerHTML=html;
+}
+function opts(a,v){return a.map(x=>`<option ${x===v?"selected":""}>${esc(x)}</option>`).join("")}
+function renderForm(){
+  const e=S.editing,d=e.data;
+  if(S.tab==="orders"){
+    $("form").innerHTML=`<div class="card"><b>${e.id?"Editar":"Nova"} encomenda</b>
+    <label>Cliente</label><input id="f_cliente" value="${esc(d.cliente)}">
+    <label>Telefone / WhatsApp</label><input id="f_telefone" type="tel" value="${esc(d.telefone)}">
+    <label>Bolos da encomenda</label><div id="itens">${d.itens.map((it,i)=>{const outro=it.sabor&&!SAB.includes(it.sabor);return `<div class="card item" data-i="${i}">
+      <div class="row"><b>Bolo ${i+1}</b>${d.itens.length>1?`<button class="btn s" data-ri="${i}">Remover</button>`:""}</div>
+      <div class="g2"><div><label>Tipo</label><select class="i_tipo">${opts(TIPOS,it.tipo)}</select></div>
+      <div><label>Tamanho</label><select class="i_tamanho">${opts(TAM,it.tamanho)}</select></div></div>
+      <div class="g2"><div><label>Sabor</label><select class="i_sabor"><option value="">Selecione</option>${SAB.map(x=>`<option ${x===it.sabor?"selected":""}>${esc(x)}</option>`).join("")}<option value="__o" ${outro?"selected":""}>Outro</option></select>
+      <input class="i_outro" placeholder="Digite o sabor" style="margin-top:8px;display:${outro?"block":"none"}" value="${esc(outro?it.sabor:"")}"></div>
+      <div><label>Quantidade</label><input class="i_qtd" type="number" min="1" inputmode="numeric" value="${esc(it.qtd||1)}"></div></div></div>`}).join("")}</div>
+    <button class="btn s" id="addItem" style="margin-top:4px">+ Adicionar outro bolo</button>
+    <div class="g2"><div><label>Data de entrega</label><input id="f_entrega" type="date" value="${esc(d.entrega)}"></div>
+    <div><label>Horário</label><input id="f_hora" type="time" value="${esc(d.hora)}"></div></div>
+    <div class="g2"><div><label>Valor (R$)</label><input id="f_valor" type="number" step="0.01" inputmode="decimal" value="${esc(d.valor)}"></div>
+    <div><label>Sinal pago (R$)</label><input id="f_sinal" type="number" step="0.01" inputmode="decimal" value="${esc(d.sinal)}"></div></div>
+    <label>Status</label><select id="f_status">${["pendente","pronto","entregue"].map(x=>`<option ${x===d.status?"selected":""}>${x}</option>`).join("")}</select>
+    <label>Observações (tema, frase, alergias...)</label><textarea id="f_obs">${esc(d.obs)}</textarea>
+    <div class="acts"><button class="btn" id="ok">Salvar</button><button class="btn s" id="cancel">Cancelar</button></div></div>`;
+  }else{
+    $("form").innerHTML=`<div class="card"><b>${e.id?"Editar":"Nova"} receita</b>
+    <label>Nome</label><input id="f_nome" value="${esc(d.nome)}">
+    <label>Rendimento</label><input id="f_rendimento" value="${esc(d.rendimento)}" placeholder="Ex.: 1 forma de 20cm">
+    <label>Ingredientes</label><textarea id="f_ingredientes">${esc(d.ingredientes)}</textarea>
+    <label>Modo de preparo</label><textarea id="f_preparo" style="min-height:140px">${esc(d.preparo)}</textarea>
+    <div class="acts"><button class="btn" id="ok">Salvar</button><button class="btn s" id="cancel">Cancelar</button></div></div>`;
+  }
+}
+function openForm(id){
+  const src=S[S.tab].find(x=>x.id===id);
+  const base=S.tab==="orders"?{cliente:"",telefone:"",entrega:"",hora:"",valor:"",sinal:"",status:"pendente",obs:""}:{nome:"",rendimento:"",ingredientes:"",preparo:""};
+  S.editing={id:id||null,data:{...base,...(src||{})}};
+  if(S.tab==="orders")S.editing.data.itens=itensDe(S.editing.data).map(x=>({...x}));
+  render();window.scrollTo(0,0);
+}
+function textoEncomenda(o){
+  let t=`*Encomenda de bolo*\n`;
+  t+=`Cliente: ${o.cliente}\n`;
+  if(o.telefone)t+=`Telefone: ${o.telefone}\n`;
+  const its=itensDe(o);
+  t+=its.length>1?`Bolos:\n${its.map((it,i)=>`${i+1}) ${itemTxt(it)}`).join("\n")}\n`:`Bolo: ${itemTxt(its[0])}\n`;
+  t+=`Entrega: ${fmtD(o.entrega)}${o.hora?" às "+o.hora:""}\n`;
+  if(o.valor!==""&&o.valor!=null)t+=`Valor: ${brl(o.valor)}${o.sinal?" (sinal "+brl(o.sinal)+" pago)":""}\n`;
+  t+=`Status: ${o.status}\n`;
+  if(o.obs)t+=`Obs: ${o.obs}\n`;
+  return t;
+}
+async function gerarPdf(o){
+  if(!window.jspdf){aviso("Não foi possível carregar o gerador de PDF.");return}
+  const dl=await claude.use("downloads").catch(()=>null);
+  if(!dl){aviso("Download indisponível aqui. Use o botão Enviar WhatsApp para copiar o texto.");return}
+  const doc=new window.jspdf.jsPDF({unit:"mm",format:"a5"});
+  let y=18;const L=14,W=doc.internal.pageSize.getWidth()-2*L;
+  doc.setFont("helvetica","bold");doc.setFontSize(18);doc.text("Encomenda de bolo",L,y);y+=10;
+  const line=(label,val)=>{if(!val)return;doc.setFont("helvetica","bold");doc.setFontSize(11);doc.text(label,L,y);
+    doc.setFont("helvetica","normal");const ls=doc.splitTextToSize(String(val),W-32);doc.text(ls,L+32,y);y+=Math.max(7,ls.length*5.5)+1};
+  line("Cliente:",o.cliente);line("Telefone:",o.telefone);
+  line("Entrega:",fmtD(o.entrega)+(o.hora?" às "+o.hora:""));
+  const its=itensDe(o);its.forEach((it,i)=>line(its.length>1?`Bolo ${i+1}:`:"Bolo:",itemTxt(it)));
+  if(o.valor!==""&&o.valor!=null){line("Valor:",brl(o.valor));if(o.sinal)line("Sinal pago:",brl(o.sinal));if(o.sinal)line("Restante:",brl(Number(o.valor)-Number(o.sinal)))}
+  line("Status:",o.status);line("Observações:",o.obs);
+  const nome=("encomenda-"+(o.cliente||"bolo")+"-"+(o.entrega||"")).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+  try{await dl.save({filename:nome+".pdf",data:doc.output("blob")})}catch(e){if(e.code!=="declined")aviso("Não foi possível salvar o PDF.")}
+}
+function readItens(){
+  return [...document.querySelectorAll(".item")].map(el=>{
+    let sab=el.querySelector(".i_sabor").value;if(sab==="__o")sab=el.querySelector(".i_outro").value.trim();
+    return {tipo:el.querySelector(".i_tipo").value,tamanho:el.querySelector(".i_tamanho").value,sabor:sab,qtd:Math.max(1,parseInt(el.querySelector(".i_qtd").value)||1)}});
+}
+function readCampos(){
+  const d=S.editing.data;
+  ["cliente","telefone","entrega","hora","valor","sinal","status","obs"].forEach(k=>{const el=$("f_"+k);if(el)d[k]=el.value});
+  d.itens=readItens();
+}
+async function enviarWhatsapp(o){
+  const texto=textoEncomenda(o);
+  const url="https://wa.me/?text="+encodeURIComponent(texto);
+  const w=window.open(url,"_blank");
+  if(!w){
+    try{await navigator.clipboard.writeText(texto);aviso("Não foi possível abrir o WhatsApp automaticamente. O texto da encomenda foi copiado — cole na conversa.")}
+    catch(e){aviso(texto)}
+  }
+}
+document.addEventListener("click",async ev=>{
+  const t=ev.target.closest("button");if(!t)return;
+  if(t.id==="t1"||t.id==="t2"){S.tab=t.id==="t1"?"orders":"recipes";render();return}
+  if(t.id==="add"){openForm();return}
+  if(t.dataset.f){S.filter=t.dataset.f;render();return}
+  if(t.dataset.e){openForm(t.dataset.e);return}
+  if(t.dataset.w){const o=S.orders.find(x=>x.id===t.dataset.w);if(o)await enviarWhatsapp(o);return}
+  if(t.dataset.p){const o=S.orders.find(x=>x.id===t.dataset.p);if(o)await gerarPdf(o);return}
+  if(t.id==="addItem"){readCampos();S.editing.data.itens.push(novoItem());renderForm();return}
+  if(t.dataset.ri!==undefined){readCampos();S.editing.data.itens.splice(+t.dataset.ri,1);renderForm();return}
+  if(t.dataset.d){await del(S.tab,t.dataset.d);return}
+  if(t.dataset.s){
+    const o=S.orders.find(x=>x.id===t.dataset.id);const{id,...rest}=o;
+    await save("orders",id,{...rest,status:t.dataset.s});if(!S.db)render();return}
+  if(t.id==="cancel"){S.editing=null;render();return}
+  if(t.id==="ok"){
+    const keys=S.tab==="orders"?["cliente","telefone","entrega","hora","valor","sinal","status","obs"]:["nome","rendimento","ingredientes","preparo"];
+    const data={};keys.forEach(k=>data[k]=$("f_"+k).value.trim());
+    if(S.tab==="orders")data.itens=readItens();
+    if(S.tab==="orders"){
+      if(!data.cliente||!data.entrega){aviso("Informe o cliente e a data de entrega.");return}
+      ["valor","sinal"].forEach(k=>data[k]=data[k]===""?"":Number(data[k]));
+    }else if(!data.nome){aviso("Informe o nome da receita.");return}
+    const id=S.editing.id||("b"+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+    const k=S.tab;S.editing=null;
+    await save(k,id,data);render();
+  }
+});
+document.addEventListener("change",ev=>{if(ev.target.classList.contains("i_sabor"))ev.target.parentElement.querySelector(".i_outro").style.display=ev.target.value==="__o"?"block":"none"});
+init();
+</script>
+</body>
+</html>

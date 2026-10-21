@@ -1,0 +1,6 @@
+{
+  "name": "Custo de Receitas",
+  "description": "Calculadora de custo e preço de venda de bolos caseiros, confeitarias e receitas culinárias com controle de gás, energia, embalagens, tamanhos e histórico de preços.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
