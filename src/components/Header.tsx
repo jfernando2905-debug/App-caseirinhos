@@ -111,13 +111,12 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </nav>
 
-        {/* Zone 3: Quick Action CTAs */}
         {/* Zone 3: Quick Action CTAs & Theme Switcher */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Theme Toggle Button */}
           <button
             onClick={onToggleTheme}
-            className="w-10 h-10 rounded-xl bg-stone-800 hover:bg-stone-700 border border-stone-700/80 flex items-center justify-center text-stone-300 hover:text-white transition-all active:scale-[0.96] shadow-xs"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-stone-800 hover:bg-stone-700 border border-stone-700/80 flex items-center justify-center text-stone-300 hover:text-white transition-all active:scale-[0.96] shadow-xs"
             title={theme === 'dark' ? 'Mudar para Modo Claro' : 'Mudar para Modo Escuro'}
             aria-label={theme === 'dark' ? 'Mudar para Modo Claro' : 'Mudar para Modo Escuro'}
           >
@@ -131,7 +130,7 @@ export const Header: React.FC<HeaderProps> = ({
           {activeTab === 'orders' ? (
             <button
               onClick={onNewOrder}
-              className="flex items-center gap-1 px-3 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-xs transition-all active:scale-[0.98] whitespace-nowrap min-h-[40px]"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-xs transition-all active:scale-[0.98] whitespace-nowrap min-h-[38px] sm:min-h-[40px]"
             >
               <Plus className="w-4 h-4 shrink-0" />
               <span className="hidden sm:inline">Nova Encomenda</span>
@@ -141,17 +140,16 @@ export const Header: React.FC<HeaderProps> = ({
             <>
               <button
                 onClick={onOpenPaste}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-amber-300 bg-stone-800 hover:bg-stone-700 border border-stone-700 rounded-xl transition-all active:scale-[0.98] whitespace-nowrap min-h-[40px]"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-amber-300 bg-stone-800 hover:bg-stone-700 border border-stone-700 rounded-xl transition-all active:scale-[0.98] whitespace-nowrap min-h-[40px]"
                 title="Importar receita colando o texto"
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="hidden sm:inline">Colar Receita</span>
-                <span className="sm:hidden">Colar</span>
+                <span>Colar Receita</span>
               </button>
 
               <button
                 onClick={onNewRecipe}
-                className="flex items-center gap-1 px-3 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-xs transition-all active:scale-[0.98] whitespace-nowrap min-h-[40px]"
+                className="flex items-center gap-1 px-2.5 sm:px-3 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-xs transition-all active:scale-[0.98] whitespace-nowrap min-h-[38px] sm:min-h-[40px]"
               >
                 <Plus className="w-4 h-4 shrink-0" />
                 <span className="hidden sm:inline">Nova Receita</span>
@@ -159,12 +157,13 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </>
           )}
+
           {/* Cloud Auth / User Profile */}
           <div className="relative">
             {user ? (
               <button
                 onClick={() => setUserMenuOpen((prev) => !prev)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-stone-800 hover:bg-stone-700 border border-stone-700 rounded-xl transition-all active:scale-[0.98] text-xs font-medium text-stone-200"
+                className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 bg-stone-800 hover:bg-stone-700 border border-stone-700 rounded-xl transition-all active:scale-[0.98] text-xs font-medium text-stone-200 min-h-[38px] sm:min-h-[40px]"
                 title={`Conectado como ${user.email} (Dados salvos no Firebase)`}
               >
                 {user.photoURL ? (
@@ -178,7 +177,7 @@ export const Header: React.FC<HeaderProps> = ({
                     {(user.displayName || user.email || 'U')[0].toUpperCase()}
                   </div>
                 )}
-                <span className="hidden sm:inline max-w-[100px] truncate">
+                <span className="hidden md:inline max-w-[100px] truncate">
                   {user.displayName?.split(' ')[0] || user.email?.split('@')[0]}
                 </span>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Sincronizado na Nuvem" />
@@ -186,12 +185,12 @@ export const Header: React.FC<HeaderProps> = ({
             ) : (
               <button
                 onClick={onOpenAuth}
-                className="flex items-center gap-1.5 px-3 py-2 bg-stone-800 hover:bg-stone-700 border border-amber-500/40 hover:border-amber-500 rounded-xl transition-all active:scale-[0.98] text-xs font-semibold text-amber-300 min-h-[40px]"
+                className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 bg-stone-800 hover:bg-stone-700 border border-amber-500/40 hover:border-amber-500 rounded-xl transition-all active:scale-[0.98] text-xs font-semibold text-amber-300 min-h-[38px] sm:min-h-[40px]"
                 title="Entrar ou cadastrar para salvar no banco de dados na nuvem"
               >
                 <Cloud className="w-4 h-4 text-amber-400 shrink-0" />
                 <span className="hidden sm:inline">Salvar na Nuvem</span>
-                <span className="sm:hidden">Nuvem</span>
+                <span className="sm:hidden text-[11px]">Nuvem</span>
               </button>
             )}
 

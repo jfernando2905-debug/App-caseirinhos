@@ -65,22 +65,22 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-stone-900 font-display flex items-center gap-2">
-            <Scale className="w-6 h-6 text-amber-600" />
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-stone-900 font-display flex items-center gap-2">
+            <Scale className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600 shrink-0" />
             <span>Escalonar Produção & Fornada</span>
           </h2>
-          <p className="text-sm text-stone-600 mt-0.5">
+          <p className="text-xs sm:text-sm text-stone-600 mt-0.5">
             Calcule a quantidade exata de ingredientes e o lucro total para encomendas de múltiplos bolos.
           </p>
         </div>
 
         <button
           onClick={handlePrint}
-          className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-stone-700 bg-white hover:bg-stone-50 border border-stone-200 rounded-xl shadow-xs transition-colors self-start sm:self-auto min-h-[42px] no-print"
+          className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-stone-700 bg-white hover:bg-stone-50 border border-stone-200 rounded-xl shadow-xs transition-colors min-h-[40px] sm:min-h-[42px] no-print"
         >
-          <Printer className="w-4 h-4 text-stone-600" />
+          <Printer className="w-4 h-4 text-stone-600 shrink-0" />
           <span>Imprimir Ordem de Produção</span>
         </button>
       </div>

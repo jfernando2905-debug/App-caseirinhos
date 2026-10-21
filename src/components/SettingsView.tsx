@@ -15,6 +15,7 @@ import {
   CloudCheck,
   LogIn,
   LogOut,
+  Smartphone,
 } from 'lucide-react';
 import { AppSettings, AppData } from '../types';
 import { formatCurrency } from '../utils/calculations';
@@ -343,6 +344,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
       </div>
+
 
       {/* Backup & Restauração */}
       <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">

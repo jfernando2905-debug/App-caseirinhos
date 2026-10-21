@@ -133,21 +133,21 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-stone-900 font-display">
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-stone-900 font-display">
             Catálogo de Ingredientes
           </h2>
-          <p className="text-sm text-stone-600 mt-0.5">
+          <p className="text-xs sm:text-sm text-stone-600 mt-0.5">
             Cadastre os preços pagos nas embalagens. Cada alteração cria histórico de variação percentual.
           </p>
         </div>
 
         <button
           onClick={openNewModal}
-          className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-xs transition-all active:scale-[0.98] self-start sm:self-auto min-h-[42px]"
+          className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-xs transition-all active:scale-[0.98] min-h-[40px] sm:min-h-[42px]"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4 shrink-0" />
           <span>Novo Ingrediente</span>
         </button>
       </div>

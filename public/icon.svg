@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+    <linearGradient id="frostingGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#fef3c7" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <!-- Background rounded squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+
+  <!-- Inner subtle glow ring -->
+  <rect x="16" y="16" width="480" height="480" rx="98" fill="none" stroke="#ffffff" stroke-opacity="0.15" stroke-width="4" />
+
+  <!-- Cake group centered with drop shadow -->
+  <g filter="url(#shadow)" transform="translate(0, 10)">
+    <!-- Cake Base / Plate -->
+    <ellipse cx="256" cy="386" rx="160" ry="24" fill="#78350f" fill-opacity="0.35" />
+    <path d="M120 376 C 120 395, 392 395, 392 376 L 382 384 C 382 400, 130 400, 130 384 Z" fill="#fef3c7" fill-opacity="0.7" />
+
+    <!-- Cake Bottom Tier -->
+    <path d="M 140 300 Q 256 340 372 300 L 372 360 Q 256 400 140 360 Z" fill="#92400e" />
+    <!-- Bottom Tier Highlight line -->
+    <path d="M 140 330 Q 256 370 372 330 L 372 338 Q 256 378 140 338 Z" fill="#b45309" fill-opacity="0.6" />
+
+    <!-- Cake Top Tier -->
+    <path d="M 172 220 Q 256 250 340 220 L 340 295 Q 256 325 172 295 Z" fill="#b45309" />
+
+    <!-- Frosting / Drip on Top Tier -->
+    <path d="M 170 220 
+             Q 256 250 342 220 
+             Q 345 250 335 260 
+             Q 325 240 315 258 
+             Q 300 242 288 265 
+             Q 272 245 256 268 
+             Q 240 245 224 265 
+             Q 212 242 197 258 
+             Q 187 240 177 260 
+             Z" fill="url(#frostingGrad)" />
+
+    <!-- Top Frosting Crown -->
+    <ellipse cx="256" cy="220" rx="84" ry="28" fill="url(#frostingGrad)" />
+
+    <!-- Chef Hat / Cherry on top -->
+    <circle cx="256" cy="162" r="22" fill="#dc2626" />
+    <circle cx="262" cy="156" r="6" fill="#fca5a5" />
+    <!-- Cherry stem -->
+    <path d="M 256 142 Q 275 118 296 126" fill="none" stroke="#7f1d1d" stroke-width="4" stroke-linecap="round" />
+
+    <!-- Golden Sparkles -->
+    <path d="M 382 170 Q 382 186 398 186 Q 382 186 382 202 Q 382 186 366 186 Q 382 186 382 170 Z" fill="#fef08a" />
+    <path d="M 130 200 Q 130 212 142 212 Q 130 212 130 224 Q 130 212 118 212 Q 130 212 130 200 Z" fill="#fef08a" />
+  </g>
+</svg>

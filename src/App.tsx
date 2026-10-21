@@ -18,6 +18,7 @@ import { SettingsView } from './components/SettingsView';
 import { PasteRecipeModal } from './components/PasteRecipeModal';
 import { PrintProductionSheet } from './components/PrintProductionSheet';
 import { AuthModal } from './components/AuthModal';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { Check, Info, AlertTriangle, X, Cloud, CloudCheck } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import {
@@ -487,7 +488,7 @@ export default function App() {
       />
 
       {/* Main App Container */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 pt-4 sm:pt-6 pb-28 md:pb-12">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-3.5 sm:px-6 pt-3.5 sm:pt-6 pb-28 md:pb-12">
         {activeTab === 'orders' && (
           <OrderList
             orders={data.orders || []}
