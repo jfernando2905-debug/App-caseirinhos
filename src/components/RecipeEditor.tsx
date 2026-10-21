@@ -253,15 +253,15 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
       )}
 
       {/* Basic Parameters Card */}
-      <div className="bg-white border border-stone-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
-        <h3 className="text-base font-bold text-stone-900 font-display flex items-center gap-2">
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+        <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 font-display flex items-center gap-2">
           <span>Informações da Receita Base</span>
-          <span className="text-xs font-normal text-stone-500">(Fator 1)</span>
+          <span className="text-xs font-normal text-stone-500 dark:text-stone-400">(Fator 1)</span>
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-stone-700 mb-1">
+            <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
               Nome do Bolo ou Receita
             </label>
             <input
@@ -269,12 +269,12 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
               value={recipe.name}
               onChange={(e) => updateField('name', e.target.value)}
               placeholder="Ex: Bolo de Cenoura com Chocolate"
-              className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-medium focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors min-h-[44px]"
+              className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-xl text-sm font-medium focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors min-h-[44px]"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-stone-700 mb-1">
+            <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
               Categoria (opcional)
             </label>
             <input
@@ -282,14 +282,14 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
               value={recipe.category || ''}
               onChange={(e) => updateField('category', e.target.value)}
               placeholder="Ex: Bolos Tradicionais, Festas, Cremosos"
-              className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-medium focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors min-h-[44px]"
+              className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-xl text-sm font-medium focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors min-h-[44px]"
             />
           </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-stone-700 mb-1">
+            <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
               Rendimento base (fatias)
             </label>
             <NumericInput
@@ -298,12 +298,12 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
               placeholder="12"
               allowDecimals={false}
               min={1}
-              className="px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm font-semibold tabular-nums focus:bg-white min-h-[42px]"
+              className="px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-semibold tabular-nums focus:bg-white dark:focus:bg-stone-800 min-h-[42px]"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-stone-700 mb-1">
+            <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
               Margem desejada (%)
             </label>
             <NumericInput
@@ -313,12 +313,12 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
               suffix="%"
               min={0}
               max={95}
-              className="px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm font-semibold tabular-nums focus:bg-white min-h-[42px]"
+              className="px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-semibold tabular-nums focus:bg-white dark:focus:bg-stone-800 min-h-[42px]"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-stone-700 mb-1">
+            <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
               Tempo de forno (min)
             </label>
             <NumericInput
@@ -328,12 +328,12 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
               allowDecimals={false}
               suffix="min"
               min={0}
-              className="px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm font-semibold tabular-nums focus:bg-white min-h-[42px]"
+              className="px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-semibold tabular-nums focus:bg-white dark:focus:bg-stone-800 min-h-[42px]"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-stone-700 mb-1">
+            <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
               Outros custos base (R$)
             </label>
             <NumericInput
@@ -342,18 +342,18 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
               placeholder="0,50"
               prefix="R$"
               min={0}
-              className="px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm font-semibold tabular-nums focus:bg-white min-h-[42px]"
+              className="px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-semibold tabular-nums focus:bg-white dark:focus:bg-stone-800 min-h-[42px]"
             />
           </div>
         </div>
 
         <div>
           <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
-            <label className="block text-xs font-semibold text-stone-700">
+            <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300">
               Temperatura do Forno (°C)
             </label>
             {heat.label && (
-              <span className="text-[11px] font-medium text-orange-700 bg-orange-50 px-2 py-0.5 rounded border border-orange-200/60">
+              <span className="text-[11px] font-medium text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/40 px-2 py-0.5 rounded border border-orange-200/60 dark:border-orange-900/60">
                 Forno {heat.label} (multiplicador de gás: ×{heat.m})
               </span>
             )}
@@ -363,9 +363,9 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
             value={recipe.temp || ''}
             onChange={(e) => updateField('temp', e.target.value)}
             placeholder="Ex: 180 ou 180-200"
-            className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-medium focus:bg-white focus:border-amber-500 transition-colors min-h-[44px]"
+            className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-xl text-sm font-medium focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500 transition-colors min-h-[44px]"
           />
-          <p className="text-[11px] text-stone-500 mt-1">
+          <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">
             Cálculo de gás: &lt;160°C usa ×0,8 (baixa), 160–210°C usa ×1,0 (média), &gt;210°C usa ×1,25 (alta).
           </p>
         </div>
@@ -435,14 +435,14 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
                 return (
                   <div
                     key={idx}
-                    className="p-3 bg-stone-50 border border-stone-200/70 rounded-xl flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5"
+                    className="p-3 bg-stone-50 dark:bg-stone-800/50 border border-stone-200/70 dark:border-stone-700/80 rounded-xl flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5"
                   >
                     {/* Ingredient Select */}
                     <div className="flex-1 min-w-0">
                       <select
                         value={it.ing}
                         onChange={(e) => handleUpdateItem(idx, { ing: e.target.value })}
-                        className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-xs sm:text-sm font-medium focus:border-amber-500 min-h-[42px]"
+                        className="w-full px-3 py-2 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-lg text-xs sm:text-sm font-medium focus:border-amber-500 min-h-[42px]"
                       >
                         <option value="">Selecione um ingrediente...</option>
                         {ingredients.map((ing) => (
@@ -463,14 +463,14 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
                           placeholder="Qtd"
                           min={0}
                           maxDecimals={2}
-                          className="px-2.5 py-2 bg-white border border-stone-200 rounded-lg text-xs sm:text-sm font-semibold tabular-nums text-right min-h-[42px]"
+                          className="px-2.5 py-2 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-lg text-xs sm:text-sm font-semibold tabular-nums text-right min-h-[42px]"
                         />
                       </div>
 
                       <select
                         value={it.unit}
                         onChange={(e) => handleUpdateItem(idx, { unit: e.target.value as Unit })}
-                        className="w-18 px-2 py-2 bg-white border border-stone-200 rounded-lg text-xs sm:text-sm font-medium focus:border-amber-500 min-h-[42px]"
+                        className="w-18 px-2 py-2 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-lg text-xs sm:text-sm font-medium focus:border-amber-500 min-h-[42px]"
                       >
                         {compatibleUnits.map((u) => (
                           <option key={u} value={u}>
@@ -554,7 +554,7 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
             {recipe.equip.map((eq, idx) => (
               <div
                 key={idx}
-                className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 bg-stone-50 border border-stone-200/80 rounded-xl"
+                className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 bg-stone-50 dark:bg-stone-800/50 border border-stone-200/80 dark:border-stone-700/80 rounded-xl"
               >
                 <div className="flex-1">
                   <input
@@ -562,7 +562,7 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
                     value={eq.nome}
                     onChange={(e) => handleUpdateEquip(idx, { nome: e.target.value })}
                     placeholder="Equipamento (ex: Liquidificador)"
-                    className="w-full px-2.5 py-1.5 bg-white border border-stone-200 rounded-lg text-xs font-medium min-h-[38px]"
+                    className="w-full px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-lg text-xs font-medium min-h-[38px]"
                   />
                 </div>
 
@@ -575,7 +575,7 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
                       allowDecimals={false}
                       suffix="W"
                       min={0}
-                      className="px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-xs font-semibold tabular-nums text-right min-h-[38px]"
+                      className="px-2 py-1.5 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-lg text-xs font-semibold tabular-nums text-right min-h-[38px]"
                     />
                   </div>
 
@@ -587,7 +587,7 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
                       allowDecimals={false}
                       suffix="min"
                       min={0}
-                      className="px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-xs font-semibold tabular-nums text-right min-h-[38px]"
+                      className="px-2 py-1.5 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-lg text-xs font-semibold tabular-nums text-right min-h-[38px]"
                     />
                   </div>
 

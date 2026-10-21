@@ -20,10 +20,22 @@
         } catch (err) {}
 
         window.addEventListener('error', function(event) {
+          var msg = (event.message || '') + (event.error ? ' ' + (event.error.message || '') + ' ' + (event.error.stack || '') : '');
           if (
-            (event.filename && event.filename.indexOf('chrome-extension://') !== -1) ||
-            (event.error && event.error.stack && event.error.stack.indexOf('chrome-extension://') !== -1)
+            msg.indexOf('WebSocket') !== -1 ||
+            msg.indexOf('@vite/client') !== -1 ||
+            (event.filename && (event.filename.indexOf('chrome-extension://') !== -1 || event.filename.indexOf('@vite/client') !== -1)) ||
+            (event.error && event.error.stack && (event.error.stack.indexOf('chrome-extension://') !== -1 || event.error.stack.indexOf('@vite/client') !== -1 || event.error.stack.indexOf('WebSocket') !== -1))
           ) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(event) {
+          var reason = event.reason ? (event.reason.message || String(event.reason)) : '';
+          if (reason.indexOf('WebSocket') !== -1 || reason.indexOf('@vite/client') !== -1) {
             event.preventDefault();
             event.stopImmediatePropagation();
             return true;

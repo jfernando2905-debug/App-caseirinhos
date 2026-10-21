@@ -141,18 +141,18 @@ export const PasteRecipeModal: React.FC<PasteRecipeModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-stone-200 my-8 max-h-[90vh] flex flex-col">
+      <div className="bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-stone-200 dark:border-stone-800 my-8 max-h-[90vh] flex flex-col">
         {/* Modal Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+        <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 flex items-center justify-center">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-stone-900 font-display">
+              <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 font-display">
                 Colar Receita Inteligente
               </h3>
-              <p className="text-xs text-stone-500">
+              <p className="text-xs text-stone-500 dark:text-stone-400">
                 Cole ingredientes e modo de preparo de qualquer site ou mensagem
               </p>
             </div>
@@ -160,7 +160,7 @@ export const PasteRecipeModal: React.FC<PasteRecipeModalProps> = ({
 
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-400 hover:text-stone-600"
+            className="w-8 h-8 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center justify-center text-stone-400 hover:text-stone-600 dark:hover:text-stone-200"
           >
             <X className="w-5 h-5" />
           </button>
@@ -171,7 +171,7 @@ export const PasteRecipeModal: React.FC<PasteRecipeModalProps> = ({
           {!parsedData ? (
             <>
               <div>
-                <label className="block text-xs font-semibold text-stone-700 mb-1">
+                <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
                   Texto da Receita
                 </label>
                 <textarea
@@ -191,23 +191,23 @@ Ingredientes:
 • 1 xícara de fubá mimoso
 • 2 colheres de sopa de manteiga
 • 1 colher de sopa de fermento químico`}
-                  className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl text-xs sm:text-sm font-sans focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                  className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-xl text-xs sm:text-sm font-sans focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                 />
               </div>
 
               {errorMsg && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-800 dark:text-rose-300 text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                   <span>{errorMsg}</span>
                 </div>
               )}
 
-              <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3 text-xs text-amber-900 space-y-1">
+              <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 rounded-xl p-3 text-xs text-amber-900 dark:text-amber-300 space-y-1">
                 <p className="font-semibold flex items-center gap-1.5">
-                  <Wand2 className="w-3.5 h-3.5 text-amber-700" />
+                  <Wand2 className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
                   <span>Conversão Automática de Medidas Caseiras:</span>
                 </p>
-                <p className="text-amber-800/80">
+                <p className="text-amber-800/80 dark:text-amber-400/80">
                   Xícaras, copos e colheres são convertidos para gramas (g) ou mililitros (ml) com densidade exata para confeitaria.
                 </p>
               </div>

@@ -10,6 +10,50 @@
   h1, h2, h3, h4, .font-display {
     font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif;
   }
+
+  /* Prevent text from becoming invisible or white-on-white in dark mode */
+  input, textarea, select {
+    color: #1c1917;
+  }
+
+  .dark input,
+  .dark textarea,
+  .dark select {
+    color: #f5f5f4;
+  }
+
+  /* When an input or its container has a light background in dark mode, force dark legible text */
+  .dark input.bg-white,
+  .dark input.bg-stone-50,
+  .dark input.bg-stone-100,
+  .dark input.bg-stone-200,
+  .dark input.bg-amber-50,
+  .dark textarea.bg-white,
+  .dark textarea.bg-stone-50,
+  .dark textarea.bg-stone-100,
+  .dark select.bg-white,
+  .dark select.bg-stone-50,
+  .dark select.bg-stone-100,
+  .dark .bg-white input:not([class*="dark:bg-"]),
+  .dark .bg-stone-50 input:not([class*="dark:bg-"]),
+  .dark .bg-stone-100 input:not([class*="dark:bg-"]),
+  .dark .bg-amber-50 input:not([class*="dark:bg-"]),
+  .dark .bg-white textarea:not([class*="dark:bg-"]),
+  .dark .bg-stone-50 textarea:not([class*="dark:bg-"]),
+  .dark .bg-white select:not([class*="dark:bg-"]),
+  .dark .bg-stone-50 select:not([class*="dark:bg-"]) {
+    color: #1c1917 !important;
+  }
+
+  /* When input explicitly has dark background in dark mode, ensure light legible text */
+  .dark input[class*="dark:bg-stone-8"],
+  .dark input[class*="dark:bg-stone-9"],
+  .dark textarea[class*="dark:bg-stone-8"],
+  .dark textarea[class*="dark:bg-stone-9"],
+  .dark select[class*="dark:bg-stone-8"],
+  .dark select[class*="dark:bg-stone-9"] {
+    color: #f5f5f4 !important;
+  }
 }
 
 /* Custom scrollbars */

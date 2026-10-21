@@ -159,7 +159,7 @@ export const NumericInput: React.FC<NumericInputProps> = ({
         placeholder={placeholder}
         disabled={disabled}
         autoFocus={autoFocus}
-        className={`w-full transition-colors outline-hidden focus:ring-1 focus:ring-amber-500 ${
+        className={`w-full text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 transition-colors outline-hidden focus:ring-1 focus:ring-amber-500 ${
           prefix ? 'pl-8' : ''
         } ${suffix ? 'pr-7' : ''} ${className}`}
       />

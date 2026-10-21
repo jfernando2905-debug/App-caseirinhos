@@ -135,10 +135,10 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-stone-900 font-display">
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-stone-900 dark:text-stone-100 font-display">
             Catálogo de Ingredientes
           </h2>
-          <p className="text-xs sm:text-sm text-stone-600 mt-0.5">
+          <p className="text-xs sm:text-sm text-stone-600 dark:text-stone-400 mt-0.5">
             Cadastre os preços pagos nas embalagens. Cada alteração cria histórico de variação percentual.
           </p>
         </div>
@@ -153,21 +153,21 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white border border-stone-200 rounded-2xl p-4 shadow-xs space-y-3">
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 shadow-xs space-y-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar por nome do ingrediente ou categoria..."
-              className="w-full pl-9 pr-8 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 transition-colors min-h-[42px]"
+              className="w-full pl-9 pr-8 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-xl text-sm focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500 dark:focus:border-amber-500 transition-colors min-h-[42px]"
             />
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -178,7 +178,7 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
             <select
               value={selectedUnit}
               onChange={(e) => setSelectedUnit(e.target.value)}
-              className="px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs font-medium text-stone-700 focus:bg-white min-h-[42px]"
+              className="px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-xs font-medium focus:bg-white dark:focus:bg-stone-800 min-h-[42px]"
             >
               <option value="all">Todas Unidades</option>
               <option value="kg">kg (Quilograma)</option>
@@ -192,11 +192,11 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
               onClick={() => setFilterMissingPrice(!filterMissingPrice)}
               className={`px-3 py-2 text-xs font-semibold rounded-xl border transition-colors whitespace-nowrap min-h-[42px] flex items-center gap-1.5 ${
                 filterMissingPrice
-                  ? 'bg-rose-100 text-rose-900 border-rose-300'
-                  : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
+                  ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-900 dark:text-rose-300 border-rose-300 dark:border-rose-900'
+                  : 'bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-700'
               }`}
             >
-              <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
               <span>Sem Preço ({missingPricesCount})</span>
             </button>
           </div>
@@ -205,10 +205,10 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
 
       {/* Ingredients List Cards */}
       {filtered.length === 0 ? (
-        <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center shadow-xs">
-          <Egg className="w-10 h-10 text-stone-300 mx-auto mb-2" />
-          <p className="text-sm font-semibold text-stone-700">Nenhum ingrediente encontrado</p>
-          <p className="text-xs text-stone-500 mt-1">
+        <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-8 text-center shadow-xs">
+          <Egg className="w-10 h-10 text-stone-300 dark:text-stone-600 mx-auto mb-2" />
+          <p className="text-sm font-semibold text-stone-700 dark:text-stone-300">Nenhum ingrediente encontrado</p>
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
             {searchTerm || filterMissingPrice
               ? 'Tente ajustar os filtros ou termo de busca acima.'
               : 'Cadastre seu primeiro ingrediente para começar a calcular suas receitas.'}
@@ -227,21 +227,21 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
               <div
                 key={ing.id}
                 onClick={() => openEditModal(ing)}
-                className={`bg-white border rounded-2xl p-4 shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group ${
+                className={`bg-white dark:bg-stone-900 border rounded-2xl p-4 shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group ${
                   hasNoPrice
-                    ? 'border-rose-300 bg-rose-50/20'
-                    : 'border-stone-200 hover:border-amber-400'
+                    ? 'border-rose-300 dark:border-rose-800/80 bg-rose-50/20 dark:bg-rose-950/20'
+                    : 'border-stone-200 dark:border-stone-800 hover:border-amber-400 dark:hover:border-amber-500/60'
                 }`}
               >
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div>
                       {ing.category && (
-                        <span className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider block mb-0.5">
+                        <span className="text-[10px] font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider block mb-0.5">
                           {ing.category}
                         </span>
                       )}
-                      <h3 className="text-base font-bold text-stone-900 font-display group-hover:text-amber-700 transition-colors">
+                      <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 font-display group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors">
                         {ing.name}
                       </h3>
                     </div>
@@ -251,7 +251,7 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
                         e.stopPropagation();
                         openEditModal(ing);
                       }}
-                      className="w-8 h-8 rounded-lg bg-stone-50 group-hover:bg-amber-100 flex items-center justify-center text-stone-400 group-hover:text-amber-700 transition-colors min-h-[38px] min-w-[38px]"
+                      className="w-8 h-8 rounded-lg bg-stone-50 dark:bg-stone-800 group-hover:bg-amber-100 dark:group-hover:bg-amber-900/40 flex items-center justify-center text-stone-400 group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors min-h-[38px] min-w-[38px]"
                       title="Editar ingrediente"
                     >
                       <Edit2 className="w-4 h-4" />
@@ -260,36 +260,36 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
 
                   <div className="space-y-1 my-3">
                     <div className="flex justify-between items-baseline text-xs">
-                      <span className="text-stone-500">Preço pago:</span>
-                      <strong className={`tabular-nums ${hasNoPrice ? 'text-rose-600' : 'text-stone-900 text-sm'}`}>
+                      <span className="text-stone-500 dark:text-stone-400">Preço pago:</span>
+                      <strong className={`tabular-nums ${hasNoPrice ? 'text-rose-600 dark:text-rose-400' : 'text-stone-900 dark:text-stone-100 text-sm'}`}>
                         {hasNoPrice ? '⚠ R$ 0,00' : formatCurrency(ing.price)}
                       </strong>
                     </div>
 
                     <div className="flex justify-between items-baseline text-xs">
-                      <span className="text-stone-500">Embalagem:</span>
-                      <span className="text-stone-700 tabular-nums">
+                      <span className="text-stone-500 dark:text-stone-400">Embalagem:</span>
+                      <span className="text-stone-700 dark:text-stone-300 tabular-nums">
                         {formatNumber(ing.size, 2)} {ing.unit}
                       </span>
                     </div>
 
-                    <div className="flex justify-between items-baseline text-xs pt-1 border-t border-stone-100 font-medium">
-                      <span className="text-stone-500">Custo base:</span>
-                      <strong className="text-amber-800 tabular-nums">
+                    <div className="flex justify-between items-baseline text-xs pt-1 border-t border-stone-100 dark:border-stone-800 font-medium">
+                      <span className="text-stone-500 dark:text-stone-400">Custo base:</span>
+                      <strong className="text-amber-800 dark:text-amber-400 tabular-nums">
                         {hasNoPrice ? 'Preço não definido' : getPerLabel(ing)}
                       </strong>
                     </div>
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-[11px] text-stone-400">
+                <div className="pt-2 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between text-[11px] text-stone-400 dark:text-stone-500">
                   <span>
                     {usedInCount === 0
                       ? 'Não usado em receitas'
                       : `Usado em ${usedInCount} receita(s)`}
                   </span>
                   {historyCount > 1 && (
-                    <span className="flex items-center gap-1 text-stone-500">
+                    <span className="flex items-center gap-1 text-stone-500 dark:text-stone-400">
                       <History className="w-3 h-3" />
                       {historyCount} preços
                     </span>
@@ -304,28 +304,28 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
       {/* Edit / New Ingredient Modal */}
       {editingIngredient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-stone-200 my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100 mb-4">
-              <h3 className="text-lg font-bold text-stone-900 font-display">
+          <div className="bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-stone-200 dark:border-stone-800 my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800 mb-4">
+              <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 font-display">
                 {isNew ? 'Novo Ingrediente' : 'Editar Ingrediente'}
               </h3>
               <button
                 onClick={() => setEditingIngredient(null)}
-                className="w-8 h-8 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-400 hover:text-stone-600 min-h-[38px] min-w-[38px]"
+                className="w-8 h-8 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center justify-center text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 min-h-[38px] min-w-[38px]"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {formError && (
-              <div className="p-3 mb-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+              <div className="p-3 mb-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-800 dark:text-rose-300 text-xs">
                 {formError}
               </div>
             )}
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-stone-700 mb-1">
+                <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
                   Nome do Ingrediente *
                 </label>
                 <input
@@ -333,12 +333,12 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   placeholder="Ex: Farinha de trigo especial"
-                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-medium focus:bg-white focus:border-amber-500 transition-colors min-h-[44px]"
+                  className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-xl text-sm font-medium focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500 transition-colors min-h-[44px]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-stone-700 mb-1">
+                <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
                   Categoria (opcional)
                 </label>
                 <input
@@ -346,13 +346,13 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
                   value={formCategory}
                   onChange={(e) => setFormCategory(e.target.value)}
                   placeholder="Ex: Secos, Laticínios, Confeitaria, Hortifrúti"
-                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-medium focus:bg-white focus:border-amber-500 transition-colors min-h-[44px]"
+                  className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-xl text-sm font-medium focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500 transition-colors min-h-[44px]"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-stone-700 mb-1">
+                  <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
                     Preço pago (R$) *
                   </label>
                   <NumericInput
@@ -361,12 +361,12 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
                     placeholder="0,00"
                     prefix="R$"
                     min={0}
-                    className="px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm font-bold tabular-nums text-right focus:bg-white min-h-[42px]"
+                    className="px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-bold tabular-nums text-right focus:bg-white dark:focus:bg-stone-800 min-h-[42px]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-stone-700 mb-1">
+                  <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
                     Tamanho da embalagem *
                   </label>
                   <NumericInput
@@ -375,18 +375,18 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
                     placeholder="1"
                     min={0.001}
                     maxDecimals={3}
-                    className="px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm font-semibold tabular-nums text-right focus:bg-white min-h-[42px]"
+                    className="px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-semibold tabular-nums text-right focus:bg-white dark:focus:bg-stone-800 min-h-[42px]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-stone-700 mb-1">
+                  <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
                     Unidade de compra *
                   </label>
                   <select
                     value={formUnit}
                     onChange={(e) => setFormUnit(e.target.value as Unit)}
-                    className="w-full px-2.5 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm font-medium focus:bg-white focus:border-amber-500 min-h-[42px]"
+                    className="w-full px-2.5 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-medium focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500 min-h-[42px]"
                   >
                     <option value="g">g (grama)</option>
                     <option value="kg">kg (quilo)</option>
@@ -399,22 +399,22 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
 
               {/* Price History Table */}
               {!isNew && editingIngredient.hist && editingIngredient.hist.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-stone-100">
-                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    <History className="w-3.5 h-3.5 text-amber-700" />
+                <div className="mt-4 pt-4 border-t border-stone-100 dark:border-stone-800">
+                  <h4 className="text-xs font-bold text-stone-800 dark:text-stone-200 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <History className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                     <span>Histórico de Preços e Variação</span>
                   </h4>
 
-                  <div className="border border-stone-200 rounded-xl overflow-hidden text-xs max-h-44 overflow-y-auto">
+                  <div className="border border-stone-200 dark:border-stone-700 rounded-xl overflow-hidden text-xs max-h-44 overflow-y-auto">
                     <table className="w-full text-left">
-                      <thead className="bg-stone-50 border-b border-stone-200 text-stone-600">
+                      <thead className="bg-stone-50 dark:bg-stone-800 border-b border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-400">
                         <tr>
                           <th className="py-2 px-3 font-semibold">Data</th>
                           <th className="py-2 px-3 font-semibold text-right">Preço / Emb.</th>
                           <th className="py-2 px-3 font-semibold text-right">Variação</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-stone-100">
+                      <tbody className="divide-y divide-stone-100 dark:divide-stone-800">
                         {[...editingIngredient.hist].reverse().map((h, hIdx, arr) => {
                           const prev = arr[hIdx + 1];
                           const factorCurr = UNIT_FACTORS[h.unit] || 1;
@@ -425,10 +425,10 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
 
                           return (
                             <tr key={hIdx}>
-                              <td className="py-1.5 px-3 text-stone-600">
+                              <td className="py-1.5 px-3 text-stone-600 dark:text-stone-400">
                                 {new Date(h.d).toLocaleDateString('pt-BR')}
                               </td>
-                              <td className="py-1.5 px-3 text-right font-medium text-stone-900 tabular-nums">
+                              <td className="py-1.5 px-3 text-right font-medium text-stone-900 dark:text-stone-100 tabular-nums">
                                 {formatCurrency(h.price)} / {formatNumber(h.size, 2)} {h.unit}
                               </td>
                               <td className="py-1.5 px-3 text-right tabular-nums">
@@ -459,14 +459,14 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
             </div>
 
             {/* Modal Actions */}
-            <div className="flex items-center justify-between gap-3 mt-6 pt-4 border-t border-stone-100">
+            <div className="flex items-center justify-between gap-3 mt-6 pt-4 border-t border-stone-100 dark:border-stone-800">
               <div>
                 {!isNew && (
                   <button
                     onClick={() => {
                       setDeleteConfirmId(editingIngredient.id);
                     }}
-                    className="px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 rounded-xl transition-colors min-h-[42px] flex items-center gap-1"
+                    className="px-3 py-2 text-xs font-semibold text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors min-h-[42px] flex items-center gap-1"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Excluir</span>
@@ -477,7 +477,7 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setEditingIngredient(null)}
-                  className="px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl transition-colors min-h-[42px]"
+                  className="px-4 py-2 text-xs font-semibold text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-colors min-h-[42px]"
                 >
                   Cancelar
                 </button>
@@ -496,19 +496,19 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-stone-200">
-            <h3 className="text-lg font-bold text-stone-900 font-display">Excluir Ingrediente?</h3>
+          <div className="bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 rounded-2xl max-w-sm w-full p-6 shadow-xl border border-stone-200 dark:border-stone-800">
+            <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 font-display">Excluir Ingrediente?</h3>
             {(() => {
               const usedIn = recipes.filter((r) =>
                 (r.items || []).some((it) => it.ing === deleteConfirmId)
               );
               return (
-                <div className="mt-2 text-sm text-stone-600 space-y-2">
+                <div className="mt-2 text-sm text-stone-600 dark:text-stone-300 space-y-2">
                   <p>
                     Tem certeza que deseja apagar este ingrediente do catálogo?
                   </p>
                   {usedIn.length > 0 && (
-                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium">
+                    <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 text-amber-900 dark:text-amber-300 text-xs font-medium">
                       ⚠ Este ingrediente está sendo usado em <strong>{usedIn.length} receita(s)</strong> (ex:{' '}
                       {usedIn.map((r) => r.name).join(', ')}). Ao excluir, ele será removido dessas receitas!
                     </div>
@@ -519,7 +519,7 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={() => setDeleteConfirmId(null)}
-                className="px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl min-h-[44px]"
+                className="px-4 py-2 text-xs font-semibold text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl min-h-[42px]"
               >
                 Cancelar
               </button>
@@ -527,9 +527,11 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
                 onClick={() => {
                   onDeleteIngredient(deleteConfirmId);
                   setDeleteConfirmId(null);
-                  setEditingIngredient(null);
+                  if (editingIngredient && editingIngredient.id === deleteConfirmId) {
+                    setEditingIngredient(null);
+                  }
                 }}
-                className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl min-h-[44px]"
+                className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl min-h-[42px]"
               >
                 Confirmar Exclusão
               </button>
