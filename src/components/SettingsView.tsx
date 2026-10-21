@@ -11,12 +11,17 @@ import {
   RefreshCw,
   Trash2,
   AlertTriangle,
+  Cloud,
+  CloudCheck,
+  LogIn,
+  LogOut,
 } from 'lucide-react';
 import { AppSettings, AppData } from '../types';
 import { formatCurrency } from '../utils/calculations';
 import { exportBackupJSON } from '../utils/storage';
 import { NumericInput } from './NumericInput';
 import { ProfitAccumulationChart } from './ProfitAccumulationChart';
+import { useAuth } from '../context/AuthContext';
 
 interface SettingsViewProps {
   cfg: AppSettings;
@@ -35,6 +40,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onResetData,
   onSeedData,
 }) => {
+  const { user, signInWithGoogle, signOut } = useAuth();
   const [copied, setCopied] = useState<boolean>(false);
   const [restoreText, setRestoreText] = useState<string>('');
   const [restoreError, setRestoreError] = useState<string>('');
@@ -250,8 +256,59 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </p>
       </div>
 
+      {/* Banco de Dados na Nuvem (Firebase Firestore) */}
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${user ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400' : 'bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400'}`}>
+              {user ? <CloudCheck className="w-5 h-5" /> : <Cloud className="w-5 h-5" />}
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 font-display flex items-center gap-2">
+                <span>Banco de Dados na Nuvem</span>
+                {user ? (
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300">
+                    Sincronizado
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300">
+                    Local (Offline)
+                  </span>
+                )}
+              </h3>
+              <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+                {user
+                  ? `Conectado como ${user.email}. Todos os seus lançamentos estão salvos no Firebase Firestore e sincronizados em tempo real.`
+                  : 'Salve seus dados na nuvem para acessar do celular, notebook ou qualquer outro dispositivo sem risco de perder suas receitas e pedidos.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="shrink-0 self-end sm:self-auto">
+            {user ? (
+              <button
+                onClick={() => signOut()}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 rounded-xl transition-colors min-h-[40px]"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Desconectar</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => signInWithGoogle()}
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-xs transition-all active:scale-[0.98] min-h-[40px]"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Entrar com Google</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Backup & Restauração */}
       <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+
         <div>
           <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 font-display">
             Backup & Segurança dos Dados

@@ -1,0 +1,158 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common security helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation helper for UserProfile
+    function isValidUserProfile(data, userId) {
+      return data.userId is string && data.userId == userId &&
+        data.email is string && data.email.size() <= 256 &&
+        (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 128)) &&
+        (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64)) &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    // Validation helper for Ingredient
+    function isValidIngredient(data, userId) {
+      return data.id is string && isValidId(data.id) &&
+        data.userId is string && data.userId == userId &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
+        data.price is number && data.price >= 0 &&
+        data.size is number && data.size > 0 &&
+        data.unit is string && (data.unit == 'g' || data.unit == 'ml' || data.unit == 'un') &&
+        (!('category' in data) || (data.category is string && data.category.size() <= 64)) &&
+        (!('hist' in data) || (data.hist is list && data.hist.size() <= 10)) &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    // Validation helper for Recipe
+    function isValidRecipe(data, userId) {
+      return data.id is string && isValidId(data.id) &&
+        data.userId is string && data.userId == userId &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
+        data.yield is number && data.yield > 0 &&
+        data.margin is number && data.margin >= 0 &&
+        (!('category' in data) || (data.category is string && data.category.size() <= 64)) &&
+        (!('time' in data) || (data.time is number && data.time >= 0)) &&
+        (!('temp' in data) || (data.temp is string && data.temp.size() <= 32)) &&
+        (!('fuel' in data) || (data.fuel is number && data.fuel >= 0)) &&
+        (!('pack' in data) || (data.pack is number && data.pack >= 0)) &&
+        (!('sell' in data) || (data.sell is number && data.sell >= 0)) &&
+        (!('items' in data) || (data.items is list && data.items.size() <= 100)) &&
+        (!('equip' in data) || (data.equip is list && data.equip.size() <= 20)) &&
+        (!('sizes' in data) || (data.sizes is list && data.sizes.size() <= 20)) &&
+        (!('instructions' in data) || (data.instructions is string && data.instructions.size() <= 5000)) &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    // Validation helper for Order
+    function isValidOrder(data, userId) {
+      return data.id is string && isValidId(data.id) &&
+        data.userId is string && data.userId == userId &&
+        data.cliente is string && data.cliente.size() > 0 && data.cliente.size() <= 128 &&
+        data.entrega is string && data.entrega.size() <= 16 &&
+        data.valor is number && data.valor >= 0 &&
+        data.status is string && (data.status == 'pendente' || data.status == 'pronto' || data.status == 'entregue') &&
+        (!('telefone' in data) || (data.telefone is string && data.telefone.size() <= 32)) &&
+        (!('hora' in data) || (data.hora is string && data.hora.size() <= 16)) &&
+        (!('sinal' in data) || (data.sinal is number && data.sinal >= 0)) &&
+        (!('itens' in data) || (data.itens is list && data.itens.size() <= 50)) &&
+        (!('obs' in data) || (data.obs is string && data.obs.size() <= 2000)) &&
+        (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64)) &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    // Validation helper for Settings
+    function isValidSettings(data, userId) {
+      return data.id is string && isValidId(data.id) &&
+        data.userId is string && data.userId == userId &&
+        data.kwh is number && data.kwh >= 0 &&
+        data.gas is number && data.gas >= 0 &&
+        data.margin is number && data.margin >= 0 &&
+        (!('gasType' in data) || (data.gasType is string && (data.gasType == 'botijao' || data.gasType == 'encanado'))) &&
+        (!('gasM3' in data) || (data.gasM3 is number && data.gasM3 >= 0)) &&
+        (!('labor' in data) || (data.labor is number && data.labor >= 0)) &&
+        (!('bakeryName' in data) || (data.bakeryName is string && data.bakeryName.size() <= 128)) &&
+        (!('bakeryPhone' in data) || (data.bakeryPhone is string && data.bakeryPhone.size() <= 32)) &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    // User profile collection
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false; // Deny user enumeration
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming(), userId);
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // Ingredients subcollection
+      match /ingredients/{ingredientId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(ingredientId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(ingredientId) &&
+                         isValidIngredient(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(ingredientId) &&
+                         isValidIngredient(incoming(), userId);
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(ingredientId);
+      }
+
+      // Recipes subcollection
+      match /recipes/{recipeId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(recipeId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(recipeId) &&
+                         isValidRecipe(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(recipeId) &&
+                         isValidRecipe(incoming(), userId);
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(recipeId);
+      }
+
+      // Orders subcollection
+      match /orders/{orderId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(orderId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(orderId) &&
+                         isValidOrder(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(orderId) &&
+                         isValidOrder(incoming(), userId);
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(orderId);
+      }
+
+      // Settings subcollection
+      match /settings/{settingId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(settingId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(settingId) &&
+                         isValidSettings(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(settingId) &&
+                         isValidSettings(incoming(), userId);
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(settingId);
+      }
+    }
+  }
+}

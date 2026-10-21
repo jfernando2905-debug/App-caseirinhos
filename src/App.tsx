@@ -17,9 +17,23 @@ import { BatchScaler } from './components/BatchScaler';
 import { SettingsView } from './components/SettingsView';
 import { PasteRecipeModal } from './components/PasteRecipeModal';
 import { PrintProductionSheet } from './components/PrintProductionSheet';
-import { Check, Info, AlertTriangle, X } from 'lucide-react';
+import { Check, Info, AlertTriangle, X, Cloud, CloudCheck } from 'lucide-react';
+import { useAuth } from './context/AuthContext';
+import {
+  ensureUserProfile,
+  seedLocalDataToCloudIfEmpty,
+  subscribeToUserData,
+  saveCloudIngredient,
+  deleteCloudIngredient,
+  saveCloudRecipe,
+  deleteCloudRecipe,
+  saveCloudOrder,
+  deleteCloudOrder,
+  saveCloudSettings,
+} from './services/firestoreSync';
 
 export default function App() {
+  const { user, signInWithGoogle } = useAuth();
   const [data, setData] = useState<AppData>(() => loadAppData());
   const [activeTab, setActiveTab] = useState<'orders' | 'recs' | 'ings' | 'scale' | 'cfg'>('orders');
   const [activeRecipe, setActiveRecipe] = useState<Recipe | null>(null);
@@ -57,10 +71,60 @@ export default function App() {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
 
-  // Auto-save on data change
+  // Auto-save local storage on data change as offline backup
   useEffect(() => {
     saveAppData(data);
   }, [data]);
+
+  // Real-time Firestore Cloud Database Synchronization
+  useEffect(() => {
+    if (!user) return;
+
+    let unsub: (() => void) | undefined;
+
+    const setupSync = async () => {
+      try {
+        await ensureUserProfile(user.uid, user.email || '', user.displayName);
+
+        // Migrate local data to cloud if cloud is brand new
+        const migrated = await seedLocalDataToCloudIfEmpty(user.uid, data);
+        if (migrated) {
+          showToast('Seus dados locais foram sincronizados e salvos no Banco de Dados na Nuvem!');
+        }
+
+        // Subscribe to real-time changes across devices
+        unsub = subscribeToUserData(user.uid, {
+          onIngredients: (cloudIngs) => {
+            if (cloudIngs.length > 0) {
+              setData((prev) => ({ ...prev, ings: cloudIngs }));
+            }
+          },
+          onRecipes: (cloudRecs) => {
+            if (cloudRecs.length > 0) {
+              setData((prev) => ({ ...prev, recs: cloudRecs }));
+            }
+          },
+          onOrders: (cloudOrders) => {
+            setData((prev) => ({ ...prev, orders: cloudOrders }));
+          },
+          onSettings: (cloudCfg) => {
+            setData((prev) => ({ ...prev, cfg: cloudCfg }));
+          },
+          onError: (err) => {
+            console.error('Cloud synchronization error:', err);
+          },
+        });
+      } catch (err: any) {
+        console.error('Failed to initialize cloud database sync:', err);
+      }
+    };
+
+    setupSync();
+
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [user]);
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type });
@@ -95,6 +159,12 @@ export default function App() {
       };
     });
 
+    if (user) {
+      saveCloudOrder(user.uid, savedOrder).catch((err) =>
+        console.error('Error saving order to cloud:', err)
+      );
+    }
+
     showToast(
       editingOrder
         ? `Encomenda de ${savedOrder.cliente} atualizada!`
@@ -103,10 +173,24 @@ export default function App() {
   };
 
   const handleUpdateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
-    setData((prev) => ({
-      ...prev,
-      orders: prev.orders.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)),
-    }));
+    let targetOrder: Order | undefined;
+    setData((prev) => {
+      const updated = prev.orders.map((o) => {
+        if (o.id === orderId) {
+          targetOrder = { ...o, status: newStatus };
+          return targetOrder;
+        }
+        return o;
+      });
+      return { ...prev, orders: updated };
+    });
+
+    if (user && targetOrder) {
+      saveCloudOrder(user.uid, targetOrder).catch((err) =>
+        console.error('Error updating order status in cloud:', err)
+      );
+    }
+
     const statusLabel =
       newStatus === 'pronto' ? 'marcada como pronta' : newStatus === 'entregue' ? 'marcada como entregue' : 'pendente';
     showToast(`Encomenda ${statusLabel}!`);
@@ -117,6 +201,13 @@ export default function App() {
       ...prev,
       orders: prev.orders.filter((o) => o.id !== orderId),
     }));
+
+    if (user) {
+      deleteCloudOrder(user.uid, orderId).catch((err) =>
+        console.error('Error deleting order from cloud:', err)
+      );
+    }
+
     showToast('Encomenda excluída com sucesso.', 'info');
   };
 
@@ -155,6 +246,12 @@ export default function App() {
       recs: [newRec, ...prev.recs],
     }));
 
+    if (user) {
+      saveCloudRecipe(user.uid, newRec).catch((err) =>
+        console.error('Error saving new recipe to cloud:', err)
+      );
+    }
+
     setActiveRecipe(newRec);
     setActiveTab('recs');
   };
@@ -171,6 +268,12 @@ export default function App() {
       recs: prev.recs.map((r) => (r.id === updated.id ? updated : r)),
     }));
     setActiveRecipe(updated);
+
+    if (user) {
+      saveCloudRecipe(user.uid, updated).catch((err) =>
+        console.error('Error updating recipe in cloud:', err)
+      );
+    }
   };
 
   const handleDeleteRecipe = (id: string) => {
@@ -179,6 +282,13 @@ export default function App() {
       recs: prev.recs.filter((r) => r.id !== id),
     }));
     setActiveRecipe(null);
+
+    if (user) {
+      deleteCloudRecipe(user.uid, id).catch((err) =>
+        console.error('Error deleting recipe from cloud:', err)
+      );
+    }
+
     showToast('Receita excluída com sucesso.', 'info');
   };
 
@@ -196,6 +306,12 @@ export default function App() {
       ...prev,
       recs: [duplicated, ...prev.recs],
     }));
+
+    if (user) {
+      saveCloudRecipe(user.uid, duplicated).catch((err) =>
+        console.error('Error saving duplicated recipe to cloud:', err)
+      );
+    }
 
     showToast(`Receita "${duplicated.name}" duplicada!`);
   };
@@ -218,23 +334,17 @@ export default function App() {
         updatedIngs = [...prev.ings, ingredient];
       }
 
-      // Update recipe item units if ingredient unit changed base
-      const updatedRecs = prev.recs.map((r) => ({
-        ...r,
-        items: (r.items || []).map((it) => {
-          if (it.ing === ingredient.id) {
-            return it;
-          }
-          return it;
-        }),
-      }));
-
       return {
         ...prev,
         ings: updatedIngs,
-        recs: updatedRecs,
       };
     });
+
+    if (user) {
+      saveCloudIngredient(user.uid, ingredient).catch((err) =>
+        console.error('Error saving ingredient to cloud:', err)
+      );
+    }
 
     showToast(`Ingrediente "${ingredient.name}" salvo com sucesso!`);
   };
@@ -248,6 +358,13 @@ export default function App() {
         items: (r.items || []).filter((it) => it.ing !== id),
       })),
     }));
+
+    if (user) {
+      deleteCloudIngredient(user.uid, id).catch((err) =>
+        console.error('Error deleting ingredient from cloud:', err)
+      );
+    }
+
     showToast('Ingrediente removido do catálogo.', 'info');
   };
 
@@ -257,6 +374,13 @@ export default function App() {
       ...prev,
       recs: [recipe, ...prev.recs],
     }));
+
+    if (user) {
+      saveCloudRecipe(user.uid, recipe).catch((err) =>
+        console.error('Error saving imported recipe to cloud:', err)
+      );
+    }
+
     setActiveRecipe(recipe);
     setActiveTab('recs');
 
@@ -276,6 +400,13 @@ export default function App() {
       ...prev,
       cfg: newCfg,
     }));
+
+    if (user) {
+      saveCloudSettings(user.uid, newCfg).catch((err) =>
+        console.error('Error saving settings to cloud:', err)
+      );
+    }
+
     showToast('Ajustes atualizados.');
   };
 

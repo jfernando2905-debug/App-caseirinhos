@@ -1,0 +1,310 @@
+{
+  "entities": {
+    "userProfile": {
+      "title": "UserProfile",
+      "description": "User profile with email and metadata",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID matching document ID",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address",
+          "maxLength": 256
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Account creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["userId", "email"]
+    },
+    "ingredient": {
+      "title": "Ingredient",
+      "description": "Bakery ingredient with package price, size and unit",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique ingredient ID",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user ID",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Ingredient name",
+          "maxLength": 128
+        },
+        "price": {
+          "type": "number",
+          "description": "Package purchase price in BRL"
+        },
+        "size": {
+          "type": "number",
+          "description": "Package net content quantity"
+        },
+        "unit": {
+          "type": "string",
+          "description": "Measurement unit",
+          "enum": ["g", "ml", "un"]
+        },
+        "category": {
+          "type": "string",
+          "description": "Ingredient classification category",
+          "maxLength": 64
+        },
+        "hist": {
+          "type": "array",
+          "description": "Recent price update history (max 10 entries)"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when ingredient was last updated"
+        }
+      },
+      "required": ["id", "userId", "name", "price", "size", "unit"]
+    },
+    "recipe": {
+      "title": "Recipe",
+      "description": "Cake recipe with costs, items, sizes, baking parameters and notes",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique recipe ID",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user ID",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Recipe name",
+          "maxLength": 128
+        },
+        "category": {
+          "type": "string",
+          "description": "Recipe category",
+          "maxLength": 64
+        },
+        "yield": {
+          "type": "number",
+          "description": "Base yield in slices or units"
+        },
+        "margin": {
+          "type": "number",
+          "description": "Profit margin percentage"
+        },
+        "time": {
+          "type": "number",
+          "description": "Oven baking time in minutes"
+        },
+        "temp": {
+          "type": "string",
+          "description": "Baking temperature in Celsius",
+          "maxLength": 32
+        },
+        "fuel": {
+          "type": "number",
+          "description": "Gas kg/h consumption factor"
+        },
+        "pack": {
+          "type": "number",
+          "description": "Packaging cost in BRL"
+        },
+        "sell": {
+          "type": "number",
+          "description": "Manual selling price override in BRL"
+        },
+        "items": {
+          "type": "array",
+          "description": "Ingredients and quantities needed for the recipe"
+        },
+        "equip": {
+          "type": "array",
+          "description": "Electric equipments used (mixer, blender, etc.)"
+        },
+        "sizes": {
+          "type": "array",
+          "description": "Multiple batch scaling sizes (P, M, G, etc.)"
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Preparation instructions and notes",
+          "maxLength": 5000
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when recipe was last updated"
+        }
+      },
+      "required": ["id", "userId", "name", "yield", "margin"]
+    },
+    "order": {
+      "title": "Order",
+      "description": "Customer order with delivery scheduling, price, deposit and status",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique order ID",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user ID",
+          "maxLength": 128
+        },
+        "cliente": {
+          "type": "string",
+          "description": "Customer name",
+          "maxLength": 128
+        },
+        "telefone": {
+          "type": "string",
+          "description": "Customer phone / WhatsApp number",
+          "maxLength": 32
+        },
+        "entrega": {
+          "type": "string",
+          "description": "Delivery date formatted YYYY-MM-DD",
+          "maxLength": 16
+        },
+        "hora": {
+          "type": "string",
+          "description": "Delivery time formatted HH:MM",
+          "maxLength": 16
+        },
+        "valor": {
+          "type": "number",
+          "description": "Total order amount in BRL"
+        },
+        "sinal": {
+          "type": "number",
+          "description": "Upfront advance deposit in BRL"
+        },
+        "status": {
+          "type": "string",
+          "description": "Order progression status",
+          "enum": ["pendente", "pronto", "entregue"]
+        },
+        "itens": {
+          "type": "array",
+          "description": "Line items with cake name, size and price"
+        },
+        "obs": {
+          "type": "string",
+          "description": "Additional order observations and cake specifications",
+          "maxLength": 2000
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Order creation timestamp",
+          "maxLength": 64
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when order was last updated"
+        }
+      },
+      "required": ["id", "userId", "cliente", "entrega", "valor", "status"]
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "Bakery operational rates (energy, gas, labor and company info)",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Settings document ID ('config')",
+          "maxLength": 64
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user ID",
+          "maxLength": 128
+        },
+        "kwh": {
+          "type": "number",
+          "description": "Electricity cost per kWh"
+        },
+        "gas": {
+          "type": "number",
+          "description": "Price of a 13kg gas cylinder"
+        },
+        "gasType": {
+          "type": "string",
+          "description": "Gas connection type ('botijao' or 'encanado')",
+          "enum": ["botijao", "encanado"]
+        },
+        "gasM3": {
+          "type": "number",
+          "description": "Price per m³ for piped gas"
+        },
+        "labor": {
+          "type": "number",
+          "description": "Labor rate per hour"
+        },
+        "margin": {
+          "type": "number",
+          "description": "Default target margin percentage"
+        },
+        "bakeryName": {
+          "type": "string",
+          "description": "Business or bakery brand name",
+          "maxLength": 128
+        },
+        "bakeryPhone": {
+          "type": "string",
+          "description": "Business contact phone number",
+          "maxLength": 32
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when settings were last saved"
+        }
+      },
+      "required": ["id", "userId", "kwh", "gas", "margin"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "userProfile",
+      "description": "User profile document storing user details"
+    },
+    "/users/{userId}/ingredients/{ingredientId}": {
+      "schema": "ingredient",
+      "description": "Personal ingredients and unit prices"
+    },
+    "/users/{userId}/recipes/{recipeId}": {
+      "schema": "recipe",
+      "description": "Personal recipes, equipment usage and scaling"
+    },
+    "/users/{userId}/orders/{orderId}": {
+      "schema": "order",
+      "description": "Personal customer orders, deliveries and payments"
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": "settings",
+      "description": "Personal operational cost parameters"
+    }
+  }
+}

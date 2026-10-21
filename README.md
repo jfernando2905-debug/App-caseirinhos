@@ -37,6 +37,12 @@ Uma aplicação web moderna, responsiva e completa para confeiteiras(os) e peque
    - Alternância de tema Claro/Escuro no cabeçalho com persistência em `localStorage`.
    - Layout 100% responsivo para celular (com menu inferior tátil) e desktop.
 
+8. **Banco de Dados na Nuvem (Firebase Firestore):**
+   - Sincronização automática em tempo real para acessar de qualquer celular, notebook ou computador.
+   - Login seguro com Google com apenas 1 clique.
+   - Seus dados nunca se perdem, mesmo trocando de navegador ou limpando o histórico.
+   - Migração automática: os dados já cadastrados são enviados para a nuvem assim que você faz login.
+
 ---
 
 ## 🚀 Como Rodar Localmente

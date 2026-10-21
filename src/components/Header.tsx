@@ -1,6 +1,7 @@
-import React from 'react';
-import { ChefHat, Plus, Sparkles, ShoppingBag, Calendar, Sun, Moon } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChefHat, Plus, Sparkles, ShoppingBag, Calendar, Sun, Moon, Cloud, CloudCheck, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import { AppData } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 interface HeaderProps {
   data: AppData;
@@ -23,6 +24,8 @@ export const Header: React.FC<HeaderProps> = ({
   theme,
   onToggleTheme,
 }) => {
+  const { user, signInWithGoogle, signOut } = useAuth();
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const missingPricesCount = data.ings.filter((i) => i.price <= 0).length;
   const openOrdersCount = (data.orders || []).filter((o) => o.status !== 'entregue').length;
 
@@ -154,6 +157,82 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </>
           )}
+          {/* Cloud Auth / User Profile */}
+          <div className="relative">
+            {user ? (
+              <button
+                onClick={() => setUserMenuOpen((prev) => !prev)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-stone-800 hover:bg-stone-700 border border-stone-700 rounded-xl transition-all active:scale-[0.98] text-xs font-medium text-stone-200"
+                title={`Conectado como ${user.email} (Dados salvos no Firebase)`}
+              >
+                {user.photoURL ? (
+                  <img
+                    src={user.photoURL}
+                    alt={user.displayName || 'Usuário'}
+                    className="w-5 h-5 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-5 h-5 rounded-full bg-amber-600 text-white font-bold flex items-center justify-center text-[10px]">
+                    {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                  </div>
+                )}
+                <span className="hidden sm:inline max-w-[100px] truncate">
+                  {user.displayName?.split(' ')[0] || user.email?.split('@')[0]}
+                </span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Sincronizado na Nuvem" />
+              </button>
+            ) : (
+              <button
+                onClick={() => signInWithGoogle()}
+                className="flex items-center gap-1.5 px-3 py-2 bg-stone-800 hover:bg-stone-700 border border-amber-500/40 hover:border-amber-500 rounded-xl transition-all active:scale-[0.98] text-xs font-semibold text-amber-300 min-h-[40px]"
+                title="Entrar com o Google para salvar no banco de dados na nuvem"
+              >
+                <Cloud className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="hidden sm:inline">Salvar na Nuvem</span>
+                <span className="sm:hidden">Nuvem</span>
+              </button>
+            )}
+
+            {/* Dropdown menu when logged in */}
+            {user && userMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setUserMenuOpen(false)}
+                />
+                <div className="absolute right-0 mt-2 w-64 bg-stone-900 border border-stone-800 rounded-2xl shadow-xl z-50 p-3 space-y-3">
+                  <div className="border-b border-stone-800 pb-2">
+                    <p className="text-xs font-semibold text-white truncate">
+                      {user.displayName || 'Confeitaria'}
+                    </p>
+                    <p className="text-[11px] text-stone-400 truncate mt-0.5">
+                      {user.email}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 px-2.5 py-2 bg-stone-800/80 rounded-xl text-xs text-emerald-400">
+                    <CloudCheck className="w-4 h-4 shrink-0 text-emerald-400" />
+                    <span>Banco de Dados Firestore Conectado</span>
+                  </div>
+
+                  <p className="text-[11px] text-stone-400 px-1 leading-relaxed">
+                    Suas receitas, preços e encomendas são salvos automaticamente na nuvem para você acessar de qualquer celular ou computador.
+                  </p>
+
+                  <button
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      signOut();
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 rounded-xl transition-colors border border-rose-900/30"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sair da conta</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </header>
