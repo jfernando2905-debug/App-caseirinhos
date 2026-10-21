@@ -30,6 +30,7 @@ interface SettingsViewProps {
   onRestoreData: (imported: AppData) => void;
   onResetData: () => void;
   onSeedData: () => void;
+  onOpenAuth?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -39,8 +40,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onRestoreData,
   onResetData,
   onSeedData,
+  onOpenAuth,
 }) => {
-  const { user, signInWithGoogle, signOut } = useAuth();
+  const { user, projectId, signOut } = useAuth();
   const [copied, setCopied] = useState<boolean>(false);
   const [restoreText, setRestoreText] = useState<string>('');
   const [restoreError, setRestoreError] = useState<string>('');
@@ -295,13 +297,49 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </button>
             ) : (
               <button
-                onClick={() => signInWithGoogle()}
+                onClick={() => onOpenAuth && onOpenAuth()}
                 className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-xs transition-all active:scale-[0.98] min-h-[40px]"
               >
                 <LogIn className="w-3.5 h-3.5" />
-                <span>Entrar com Google</span>
+                <span>Entrar ou Cadastrar</span>
               </button>
             )}
+          </div>
+        </div>
+
+        {/* Informações do Firebase e Ajuda de Autorização */}
+        <div className="pt-2 border-t border-stone-100 dark:border-stone-800 flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500 dark:text-stone-400">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-medium text-stone-700 dark:text-stone-300">Banco na Nuvem:</span>
+            <span className="font-semibold text-stone-800 dark:text-stone-200">Custo de Receitas</span>
+            <span className="text-[11px] text-stone-400 font-mono">(ID Cloud: {projectId || 'neural-block-ldckx'})</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <a
+              href={`https://console.firebase.google.com/project/${projectId || 'neural-block-ldckx'}/settings/general`}
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-amber-600 dark:hover:text-amber-400 underline transition-colors"
+              title="Mudar o nome de exibição do projeto no Firebase"
+            >
+              Renomear no Firebase ✏️
+            </a>
+            <a
+              href={`https://console.firebase.google.com/project/${projectId || 'neural-block-ldckx'}/authentication/providers`}
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-amber-600 dark:hover:text-amber-400 underline transition-colors"
+            >
+              Métodos de Login ↗
+            </a>
+            <a
+              href={`https://console.firebase.google.com/project/${projectId || 'neural-block-ldckx'}/authentication/settings`}
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-amber-600 dark:hover:text-amber-400 underline transition-colors"
+            >
+              Domínios ↗
+            </a>
           </div>
         </div>
       </div>

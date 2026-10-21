@@ -8,6 +8,7 @@ interface HeaderProps {
   onNewRecipe: () => void;
   onNewOrder: () => void;
   onOpenPaste: () => void;
+  onOpenAuth: () => void;
   activeTab: 'orders' | 'recs' | 'ings' | 'scale' | 'cfg';
   onNavigate: (tab: 'orders' | 'recs' | 'ings' | 'scale' | 'cfg') => void;
   theme: 'light' | 'dark';
@@ -19,12 +20,13 @@ export const Header: React.FC<HeaderProps> = ({
   onNewRecipe,
   onNewOrder,
   onOpenPaste,
+  onOpenAuth,
   activeTab,
   onNavigate,
   theme,
   onToggleTheme,
 }) => {
-  const { user, signInWithGoogle, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const missingPricesCount = data.ings.filter((i) => i.price <= 0).length;
   const openOrdersCount = (data.orders || []).filter((o) => o.status !== 'entregue').length;
@@ -183,9 +185,9 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             ) : (
               <button
-                onClick={() => signInWithGoogle()}
+                onClick={onOpenAuth}
                 className="flex items-center gap-1.5 px-3 py-2 bg-stone-800 hover:bg-stone-700 border border-amber-500/40 hover:border-amber-500 rounded-xl transition-all active:scale-[0.98] text-xs font-semibold text-amber-300 min-h-[40px]"
-                title="Entrar com o Google para salvar no banco de dados na nuvem"
+                title="Entrar ou cadastrar para salvar no banco de dados na nuvem"
               >
                 <Cloud className="w-4 h-4 text-amber-400 shrink-0" />
                 <span className="hidden sm:inline">Salvar na Nuvem</span>

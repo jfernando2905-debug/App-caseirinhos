@@ -17,6 +17,7 @@ import { BatchScaler } from './components/BatchScaler';
 import { SettingsView } from './components/SettingsView';
 import { PasteRecipeModal } from './components/PasteRecipeModal';
 import { PrintProductionSheet } from './components/PrintProductionSheet';
+import { AuthModal } from './components/AuthModal';
 import { Check, Info, AlertTriangle, X, Cloud, CloudCheck } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import {
@@ -33,7 +34,7 @@ import {
 } from './services/firestoreSync';
 
 export default function App() {
-  const { user, signInWithGoogle } = useAuth();
+  const { user } = useAuth();
   const [data, setData] = useState<AppData>(() => loadAppData());
   const [activeTab, setActiveTab] = useState<'orders' | 'recs' | 'ings' | 'scale' | 'cfg'>('orders');
   const [activeRecipe, setActiveRecipe] = useState<Recipe | null>(null);
@@ -41,6 +42,7 @@ export default function App() {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [pasteModalOpen, setPasteModalOpen] = useState<boolean>(false);
   const [printModalRecipe, setPrintModalRecipe] = useState<Recipe | null>(null);
+  const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
   const [scalingRecipeId, setScalingRecipeId] = useState<string>('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
 
@@ -451,6 +453,7 @@ export default function App() {
         onNewRecipe={handleNewRecipe}
         onNewOrder={handleNewOrder}
         onOpenPaste={() => setPasteModalOpen(true)}
+        onOpenAuth={() => setAuthModalOpen(true)}
         activeTab={activeTab}
         onNavigate={handleNavigate}
         theme={theme}
@@ -530,6 +533,7 @@ export default function App() {
             onRestoreData={handleRestoreData}
             onResetData={handleResetData}
             onSeedData={handleSeedData}
+            onOpenAuth={() => setAuthModalOpen(true)}
           />
         )}
       </main>
@@ -569,6 +573,13 @@ export default function App() {
           onClose={() => setPrintModalRecipe(null)}
         />
       )}
+
+      {/* Cloud Authentication Modal */}
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onSuccessToast={(msg) => showToast(msg)}
+      />
 
       {/* Toast Notifications */}
       {toast && (
