@@ -3,6 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script>
+      (function() {
+        try {
+          var _origFetch = window.fetch;
+          Object.defineProperty(window, 'fetch', {
+            configurable: true,
+            enumerable: true,
+            get: function() {
+              return _origFetch;
+            },
+            set: function(val) {
+              _origFetch = val;
+            }
+          });
+        } catch (err) {}
+
+        window.addEventListener('error', function(event) {
+          if (
+            (event.filename && event.filename.indexOf('chrome-extension://') !== -1) ||
+            (event.error && event.error.stack && event.error.stack.indexOf('chrome-extension://') !== -1)
+          ) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+      })();
+    </script>
     <title>Custo de Receitas - Calculadora de Preço de Venda</title>
     <meta name="description" content="Calculadora de custo e preço de venda de bolos caseiros, confeitarias e receitas culinárias com controle de gás, energia, embalagens, tamanhos e histórico de preços." />
     <meta property="og:title" content="Custo de Receitas - Calculadora de Preço de Venda" />
