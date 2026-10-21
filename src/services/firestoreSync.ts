@@ -2,12 +2,33 @@ import {
   collection,
   doc,
   setDoc,
+  getDoc,
   deleteDoc,
   onSnapshot,
   getDocs,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { AppData, Ingredient, Recipe, Order, AppSettings } from '../types';
+
+/**
+ * Strips all undefined fields recursively to prevent Firestore 'Unsupported field value: undefined' errors.
+ */
+export function removeUndefined<T>(obj: T): T {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) {
+    return obj.map((item) => removeUndefined(item)) as unknown as T;
+  }
+  if (typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const [key, val] of Object.entries(obj)) {
+      if (val !== undefined) {
+        cleaned[key] = removeUndefined(val);
+      }
+    }
+    return cleaned;
+  }
+  return obj;
+}
 
 /**
  * Ensures user profile document exists in Firestore.
@@ -17,12 +38,12 @@ export async function ensureUserProfile(userId: string, email: string, displayNa
   try {
     await setDoc(
       doc(db, 'users', userId),
-      {
+      removeUndefined({
         userId,
         email: email || '',
         displayName: displayName || '',
         updatedAt: new Date().toISOString(),
-      },
+      }),
       { merge: true }
     );
   } catch (error) {
@@ -31,62 +52,76 @@ export async function ensureUserProfile(userId: string, email: string, displayNa
 }
 
 /**
- * Checks if the user has any data stored in Firestore.
- * If empty and localData has content, uploads localData to cloud seamlessly.
+ * Checks if user collections in Firestore are empty and seeds them from localData if available.
  */
 export async function seedLocalDataToCloudIfEmpty(userId: string, localData: AppData): Promise<boolean> {
-  const ingsPath = `users/${userId}/ingredients`;
-  const recsPath = `users/${userId}/recipes`;
-  const ordersPath = `users/${userId}/orders`;
+  let seededAny = false;
 
   try {
-    const existingIngs = await getDocs(collection(db, 'users', userId, 'ingredients'));
-    const existingRecs = await getDocs(collection(db, 'users', userId, 'recipes'));
-    const existingOrders = await getDocs(collection(db, 'users', userId, 'orders'));
-
-    const isEmpty = existingIngs.empty && existingRecs.empty && existingOrders.empty;
-
-    if (isEmpty && (localData.recs.length > 0 || localData.ings.length > 0 || localData.orders.length > 0)) {
-      // Migrate ingredients
-      for (const ing of localData.ings) {
-        await setDoc(doc(db, 'users', userId, 'ingredients', ing.id), {
-          ...ing,
-          userId,
-          updatedAt: new Date().toISOString(),
-        });
+    // 1. Migrate Ingredients if cloud is empty
+    if (localData.ings && localData.ings.length > 0) {
+      const existingIngs = await getDocs(collection(db, 'users', userId, 'ingredients'));
+      if (existingIngs.empty) {
+        for (const ing of localData.ings) {
+          const payload = removeUndefined({
+            ...ing,
+            userId,
+            updatedAt: new Date().toISOString(),
+          });
+          await setDoc(doc(db, 'users', userId, 'ingredients', ing.id), payload);
+        }
+        seededAny = true;
       }
+    }
 
-      // Migrate recipes
-      for (const rec of localData.recs) {
-        await setDoc(doc(db, 'users', userId, 'recipes', rec.id), {
-          ...rec,
-          userId,
-          updatedAt: new Date().toISOString(),
-        });
+    // 2. Migrate Recipes if cloud is empty
+    if (localData.recs && localData.recs.length > 0) {
+      const existingRecs = await getDocs(collection(db, 'users', userId, 'recipes'));
+      if (existingRecs.empty) {
+        for (const rec of localData.recs) {
+          const payload = removeUndefined({
+            ...rec,
+            userId,
+            updatedAt: new Date().toISOString(),
+          });
+          await setDoc(doc(db, 'users', userId, 'recipes', rec.id), payload);
+        }
+        seededAny = true;
       }
+    }
 
-      // Migrate orders
-      for (const ord of localData.orders) {
-        await setDoc(doc(db, 'users', userId, 'orders', ord.id), {
-          ...ord,
-          userId,
-          updatedAt: new Date().toISOString(),
-        });
+    // 3. Migrate Orders if cloud is empty
+    if (localData.orders && localData.orders.length > 0) {
+      const existingOrders = await getDocs(collection(db, 'users', userId, 'orders'));
+      if (existingOrders.empty) {
+        for (const ord of localData.orders) {
+          const payload = removeUndefined({
+            ...ord,
+            userId,
+            updatedAt: new Date().toISOString(),
+          });
+          await setDoc(doc(db, 'users', userId, 'orders', ord.id), payload);
+        }
+        seededAny = true;
       }
+    }
 
-      // Migrate settings
-      if (localData.cfg) {
-        await setDoc(doc(db, 'users', userId, 'settings', 'config'), {
+    // 4. Migrate Settings if cloud config does not exist
+    if (localData.cfg) {
+      const configDoc = await getDoc(doc(db, 'users', userId, 'settings', 'config'));
+      if (!configDoc.exists()) {
+        const payload = removeUndefined({
           ...localData.cfg,
           id: 'config',
           userId,
           updatedAt: new Date().toISOString(),
         });
+        await setDoc(doc(db, 'users', userId, 'settings', 'config'), payload);
+        seededAny = true;
       }
-
-      return true;
     }
-    return false;
+
+    return seededAny;
   } catch (err) {
     console.warn('Initial cloud migration check warning:', err);
     return false;
@@ -94,7 +129,7 @@ export async function seedLocalDataToCloudIfEmpty(userId: string, localData: App
 }
 
 /**
- * Sets up realtime snapshot listeners for user collections.
+ * Sets up realtime snapshot listeners for user collections with resilient error handling.
  */
 export function subscribeToUserData(
   userId: string,
@@ -103,7 +138,7 @@ export function subscribeToUserData(
     onRecipes: (recs: Recipe[]) => void;
     onOrders: (orders: Order[]) => void;
     onSettings: (cfg: AppSettings) => void;
-    onError: (err: any) => void;
+    onError?: (err: any) => void;
   }
 ) {
   const unsubscribers: (() => void)[] = [];
@@ -123,13 +158,14 @@ export function subscribeToUserData(
           size: Number(data.size) || 1,
           unit: data.unit || 'g',
           category: data.category,
-          hist: data.hist || [],
+          hist: Array.isArray(data.hist) ? data.hist : [],
         });
       });
       callbacks.onIngredients(items);
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, ingsPath);
+      console.warn(`Firestore sync error on ${ingsPath}:`, error);
+      if (callbacks.onError) callbacks.onError(error);
     }
   );
   unsubscribers.push(unsubIngs);
@@ -152,17 +188,18 @@ export function subscribeToUserData(
           fuel: Number(data.fuel) || 0.5,
           pack: Number(data.pack) || 3.5,
           sell: Number(data.sell) || 0,
-          items: data.items || [],
-          equip: data.equip || [],
-          sizes: data.sizes || [],
+          items: Array.isArray(data.items) ? data.items : [],
+          equip: Array.isArray(data.equip) ? data.equip : [],
+          sizes: Array.isArray(data.sizes) ? data.sizes : [],
           category: data.category || 'Bolos Caseiros',
-          notes: data.notes || '',
+          notes: data.notes || data.instructions || '',
         });
       });
       callbacks.onRecipes(items);
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, recsPath);
+      console.warn(`Firestore sync error on ${recsPath}:`, error);
+      if (callbacks.onError) callbacks.onError(error);
     }
   );
   unsubscribers.push(unsubRecs);
@@ -181,20 +218,20 @@ export function subscribeToUserData(
           telefone: data.telefone || '',
           entrega: data.entrega || '',
           hora: data.hora || '',
-          valor: Number(data.valor) || 0,
-          sinal: Number(data.sinal) || 0,
+          valor: typeof data.valor === 'number' ? data.valor : 0,
+          sinal: typeof data.sinal === 'number' ? data.sinal : 0,
           status: data.status || 'pendente',
           obs: data.obs || '',
-          itens: data.itens || [],
+          itens: Array.isArray(data.itens) ? data.itens : [],
           criadoEm: typeof data.criadoEm === 'number' ? data.criadoEm : Date.now(),
         });
       });
-      // Sort orders descending by delivery date
-      items.sort((a, b) => b.entrega.localeCompare(a.entrega));
+      items.sort((a, b) => (b.entrega || '').localeCompare(a.entrega || ''));
       callbacks.onOrders(items);
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, ordersPath);
+      console.warn(`Firestore sync error on ${ordersPath}:`, error);
+      if (callbacks.onError) callbacks.onError(error);
     }
   );
   unsubscribers.push(unsubOrders);
@@ -210,14 +247,15 @@ export function subscribeToUserData(
           margin: Number(data.margin) || 60,
           gasPrice: Number(data.gasPrice) || 115,
           gasKg: Number(data.gasKg) || 13,
-          gasRate: Number(data.gasRate) || 0.225,
-          elecPrice: Number(data.elecPrice) || 0.95,
+          gasRate: Number(data.gasRate) || 0.3,
+          elecPrice: Number(data.elecPrice) || 1.06,
           ingOpen: data.ingOpen ?? true,
         });
       }
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, settingsPath);
+      console.warn(`Firestore sync error on ${settingsPath}:`, error);
+      if (callbacks.onError) callbacks.onError(error);
     }
   );
   unsubscribers.push(unsubSettings);
@@ -227,16 +265,17 @@ export function subscribeToUserData(
   };
 }
 
-// Single item mutations
+// Single item mutations with undefined sanitation
 
 export async function saveCloudIngredient(userId: string, ing: Ingredient): Promise<void> {
   const path = `users/${userId}/ingredients/${ing.id}`;
   try {
-    await setDoc(doc(db, 'users', userId, 'ingredients', ing.id), {
+    const payload = removeUndefined({
       ...ing,
       userId,
       updatedAt: new Date().toISOString(),
     });
+    await setDoc(doc(db, 'users', userId, 'ingredients', ing.id), payload);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -254,11 +293,12 @@ export async function deleteCloudIngredient(userId: string, id: string): Promise
 export async function saveCloudRecipe(userId: string, rec: Recipe): Promise<void> {
   const path = `users/${userId}/recipes/${rec.id}`;
   try {
-    await setDoc(doc(db, 'users', userId, 'recipes', rec.id), {
+    const payload = removeUndefined({
       ...rec,
       userId,
       updatedAt: new Date().toISOString(),
     });
+    await setDoc(doc(db, 'users', userId, 'recipes', rec.id), payload);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -276,11 +316,12 @@ export async function deleteCloudRecipe(userId: string, id: string): Promise<voi
 export async function saveCloudOrder(userId: string, ord: Order): Promise<void> {
   const path = `users/${userId}/orders/${ord.id}`;
   try {
-    await setDoc(doc(db, 'users', userId, 'orders', ord.id), {
+    const payload = removeUndefined({
       ...ord,
       userId,
       updatedAt: new Date().toISOString(),
     });
+    await setDoc(doc(db, 'users', userId, 'orders', ord.id), payload);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -298,12 +339,13 @@ export async function deleteCloudOrder(userId: string, id: string): Promise<void
 export async function saveCloudSettings(userId: string, cfg: AppSettings): Promise<void> {
   const path = `users/${userId}/settings/config`;
   try {
-    await setDoc(doc(db, 'users', userId, 'settings', 'config'), {
+    const payload = removeUndefined({
       ...cfg,
       id: 'config',
       userId,
       updatedAt: new Date().toISOString(),
     });
+    await setDoc(doc(db, 'users', userId, 'settings', 'config'), payload);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }

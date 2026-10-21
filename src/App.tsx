@@ -88,36 +88,62 @@ export default function App() {
       try {
         await ensureUserProfile(user.uid, user.email || '', user.displayName);
 
-        // Migrate local data to cloud if cloud is brand new
-        const migrated = await seedLocalDataToCloudIfEmpty(user.uid, data);
+        // Read current local data to ensure nothing is lost
+        const currentLocal = loadAppData();
+        const migrated = await seedLocalDataToCloudIfEmpty(user.uid, currentLocal);
         if (migrated) {
-          showToast('Seus dados locais foram sincronizados e salvos no Banco de Dados na Nuvem!');
+          showToast('Seus dados foram sincronizados e salvos com sucesso na nuvem!');
         }
 
         // Subscribe to real-time changes across devices
         unsub = subscribeToUserData(user.uid, {
           onIngredients: (cloudIngs) => {
-            if (cloudIngs.length > 0) {
-              setData((prev) => ({ ...prev, ings: cloudIngs }));
-            }
+            setData((prev) => {
+              if (cloudIngs.length === 0 && prev.ings.length > 0) {
+                // Self-healing: if cloud has no ingredients yet, push local ingredients to cloud
+                for (const ing of prev.ings) {
+                  saveCloudIngredient(user.uid, ing).catch(() => {});
+                }
+                return prev;
+              }
+              return { ...prev, ings: cloudIngs };
+            });
           },
           onRecipes: (cloudRecs) => {
-            if (cloudRecs.length > 0) {
-              setData((prev) => ({ ...prev, recs: cloudRecs }));
-            }
+            setData((prev) => {
+              if (cloudRecs.length === 0 && prev.recs.length > 0) {
+                // Self-healing: if cloud has no recipes yet, push local recipes to cloud
+                for (const rec of prev.recs) {
+                  saveCloudRecipe(user.uid, rec).catch(() => {});
+                }
+                return prev;
+              }
+              return { ...prev, recs: cloudRecs };
+            });
           },
           onOrders: (cloudOrders) => {
-            setData((prev) => ({ ...prev, orders: cloudOrders }));
+            setData((prev) => {
+              if (cloudOrders.length === 0 && prev.orders.length > 0) {
+                // Self-healing: if cloud has no orders yet, push local orders to cloud
+                for (const ord of prev.orders) {
+                  saveCloudOrder(user.uid, ord).catch(() => {});
+                }
+                return prev;
+              }
+              return { ...prev, orders: cloudOrders };
+            });
           },
           onSettings: (cloudCfg) => {
-            setData((prev) => ({ ...prev, cfg: cloudCfg }));
+            if (cloudCfg) {
+              setData((prev) => ({ ...prev, cfg: cloudCfg }));
+            }
           },
           onError: (err) => {
-            console.error('Cloud synchronization error:', err);
+            console.warn('Cloud synchronization warning:', err);
           },
         });
       } catch (err: any) {
-        console.error('Failed to initialize cloud database sync:', err);
+        console.warn('Failed to initialize cloud database sync:', err);
       }
     };
 

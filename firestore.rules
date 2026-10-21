@@ -24,10 +24,6 @@ service cloud.firestore {
       return request.resource.data;
     }
 
-    function existing() {
-      return resource.data;
-    }
-
     // Validation helper for UserProfile
     function isValidUserProfile(data, userId) {
       return data.userId is string && data.userId == userId &&
@@ -44,9 +40,9 @@ service cloud.firestore {
         data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
         data.price is number && data.price >= 0 &&
         data.size is number && data.size > 0 &&
-        data.unit is string && (data.unit == 'g' || data.unit == 'ml' || data.unit == 'un') &&
+        data.unit is string && (data.unit == 'g' || data.unit == 'kg' || data.unit == 'ml' || data.unit == 'L' || data.unit == 'un') &&
         (!('category' in data) || (data.category is string && data.category.size() <= 64)) &&
-        (!('hist' in data) || (data.hist is list && data.hist.size() <= 10)) &&
+        (!('hist' in data) || (data.hist is list && data.hist.size() <= 25)) &&
         (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
     }
 
@@ -55,7 +51,7 @@ service cloud.firestore {
       return data.id is string && isValidId(data.id) &&
         data.userId is string && data.userId == userId &&
         data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
-        data.yield is number && data.yield > 0 &&
+        data.yield is number && data.yield >= 0 &&
         data.margin is number && data.margin >= 0 &&
         (!('category' in data) || (data.category is string && data.category.size() <= 64)) &&
         (!('time' in data) || (data.time is number && data.time >= 0)) &&
@@ -66,6 +62,7 @@ service cloud.firestore {
         (!('items' in data) || (data.items is list && data.items.size() <= 100)) &&
         (!('equip' in data) || (data.equip is list && data.equip.size() <= 20)) &&
         (!('sizes' in data) || (data.sizes is list && data.sizes.size() <= 20)) &&
+        (!('notes' in data) || (data.notes is string && data.notes.size() <= 5000)) &&
         (!('instructions' in data) || (data.instructions is string && data.instructions.size() <= 5000)) &&
         (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
     }
@@ -76,13 +73,14 @@ service cloud.firestore {
         data.userId is string && data.userId == userId &&
         data.cliente is string && data.cliente.size() > 0 && data.cliente.size() <= 128 &&
         data.entrega is string && data.entrega.size() <= 16 &&
-        data.valor is number && data.valor >= 0 &&
+        (!('valor' in data) || (data.valor is number && data.valor >= 0)) &&
         data.status is string && (data.status == 'pendente' || data.status == 'pronto' || data.status == 'entregue') &&
         (!('telefone' in data) || (data.telefone is string && data.telefone.size() <= 32)) &&
         (!('hora' in data) || (data.hora is string && data.hora.size() <= 16)) &&
         (!('sinal' in data) || (data.sinal is number && data.sinal >= 0)) &&
         (!('itens' in data) || (data.itens is list && data.itens.size() <= 50)) &&
         (!('obs' in data) || (data.obs is string && data.obs.size() <= 2000)) &&
+        (!('criadoEm' in data) || (data.criadoEm is number)) &&
         (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64)) &&
         (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
     }
@@ -91,11 +89,14 @@ service cloud.firestore {
     function isValidSettings(data, userId) {
       return data.id is string && isValidId(data.id) &&
         data.userId is string && data.userId == userId &&
-        data.kwh is number && data.kwh >= 0 &&
-        data.gas is number && data.gas >= 0 &&
-        data.margin is number && data.margin >= 0 &&
-        (!('gasType' in data) || (data.gasType is string && (data.gasType == 'botijao' || data.gasType == 'encanado'))) &&
-        (!('gasM3' in data) || (data.gasM3 is number && data.gasM3 >= 0)) &&
+        (!('margin' in data) || (data.margin is number && data.margin >= 0)) &&
+        (!('gasPrice' in data) || (data.gasPrice is number && data.gasPrice >= 0)) &&
+        (!('gasKg' in data) || (data.gasKg is number && data.gasKg >= 0)) &&
+        (!('gasRate' in data) || (data.gasRate is number && data.gasRate >= 0)) &&
+        (!('elecPrice' in data) || (data.elecPrice is number && data.elecPrice >= 0)) &&
+        (!('ingOpen' in data) || (data.ingOpen is bool)) &&
+        (!('kwh' in data) || (data.kwh is number && data.kwh >= 0)) &&
+        (!('gas' in data) || (data.gas is number && data.gas >= 0)) &&
         (!('labor' in data) || (data.labor is number && data.labor >= 0)) &&
         (!('bakeryName' in data) || (data.bakeryName is string && data.bakeryName.size() <= 128)) &&
         (!('bakeryPhone' in data) || (data.bakeryPhone is string && data.bakeryPhone.size() <= 32)) &&
