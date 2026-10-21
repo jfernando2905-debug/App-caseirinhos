@@ -16,16 +16,17 @@ import {
   DollarSign,
   Scale,
   Sparkles,
+  Eye,
 } from 'lucide-react';
 import { Order, OrderStatus, Recipe } from '../types';
 import {
   formatItemText,
   formatDatePtBR,
   sendOrderWhatsApp,
-  generateOrderPdf,
   generateOrdersReportPdf,
 } from '../utils/orderShare';
 import { formatCurrency } from '../utils/calculations';
+import { OrderPreviewModal } from './OrderPreviewModal';
 
 interface OrderListProps {
   orders: Order[];
@@ -50,6 +51,7 @@ export const OrderList: React.FC<OrderListProps> = ({
 }) => {
   const [filter, setFilter] = useState<'abertas' | 'entregues' | 'todas'>('abertas');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [previewOrder, setPreviewOrder] = useState<Order | null>(null);
 
   const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -82,12 +84,7 @@ export const OrderList: React.FC<OrderListProps> = ({
   };
 
   const handlePdf = (order: Order) => {
-    try {
-      generateOrderPdf(order);
-      onToast('PDF da encomenda gerado e baixado!');
-    } catch (err: any) {
-      onToast('Erro ao gerar PDF: ' + err.message, 'error');
-    }
+    setPreviewOrder(order);
   };
 
   const handleReportPdf = () => {
@@ -360,12 +357,12 @@ export const OrderList: React.FC<OrderListProps> = ({
                     </button>
 
                     <button
-                      onClick={() => handlePdf(order)}
-                      className="px-2.5 py-1.5 text-xs font-semibold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700 rounded-lg flex items-center gap-1 transition-colors min-h-[38px]"
-                      title="Baixar comprovante em PDF"
+                      onClick={() => setPreviewOrder(order)}
+                      className="px-2.5 py-1.5 text-xs font-semibold text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-800/80 rounded-lg flex items-center gap-1.5 transition-colors min-h-[38px]"
+                      title="Visualizar pedido e baixar comprovante em PDF ou JPEG"
                     >
-                      <FileDown className="w-3.5 h-3.5 text-stone-600 dark:text-stone-400" />
-                      <span>PDF</span>
+                      <Eye className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                      <span>Comprovante</span>
                     </button>
 
                     {/* Status shortcuts */}
@@ -447,6 +444,14 @@ export const OrderList: React.FC<OrderListProps> = ({
           </div>
         </div>
       )}
+
+      {/* Order Preview & Export Modal (PDF / JPEG) */}
+      <OrderPreviewModal
+        order={previewOrder}
+        isOpen={Boolean(previewOrder)}
+        onClose={() => setPreviewOrder(null)}
+        onToast={onToast}
+      />
     </div>
   );
 };
