@@ -18,7 +18,7 @@ import {
   Check,
   Share2,
 } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 import { Order, OrderStatus } from '../types';
 import {
   formatItemText,
@@ -104,7 +104,7 @@ export const OrderPreviewModal: React.FC<OrderPreviewModalProps> = ({
     }
   };
 
-  // Download high-res JPEG using html2canvas
+  // Download high-res JPEG using html2canvas-pro (native oklab/oklch support)
   const handleDownloadJpeg = async () => {
     if (!receiptRef.current) return;
     setDownloadingJpeg(true);
@@ -119,17 +119,49 @@ export const OrderPreviewModal: React.FC<OrderPreviewModalProps> = ({
         windowWidth: 700,
       });
 
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
-      const link = document.createElement('a');
-      link.download = `${getFileBaseName()}.jpeg`;
-      link.href = dataUrl;
-      link.click();
+      const fileName = `${getFileBaseName()}.jpeg`;
 
-      if (onToast) onToast('Comprovante em JPEG baixado com sucesso!');
+      if (canvas.toBlob) {
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+              const link = document.createElement('a');
+              link.download = fileName;
+              link.href = dataUrl;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            } else {
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.download = fileName;
+              link.href = url;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              setTimeout(() => URL.revokeObjectURL(url), 5000);
+            }
+            if (onToast) onToast('Comprovante em JPEG baixado com sucesso!');
+            setDownloadingJpeg(false);
+          },
+          'image/jpeg',
+          0.95
+        );
+      } else {
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = dataUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        if (onToast) onToast('Comprovante em JPEG baixado com sucesso!');
+        setDownloadingJpeg(false);
+      }
     } catch (err: any) {
       console.error('Failed to generate JPEG:', err);
       if (onToast) onToast('Erro ao gerar imagem JPEG: ' + err.message, 'error');
-    } finally {
       setDownloadingJpeg(false);
     }
   };
