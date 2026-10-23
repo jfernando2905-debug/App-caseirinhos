@@ -574,16 +574,19 @@ export default function App() {
       />
 
       {/* Modals */}
-      <OrderFormModal
-        order={editingOrder}
-        recipes={data.recs}
-        isOpen={orderFormOpen}
-        onClose={() => {
-          setOrderFormOpen(false);
-          setEditingOrder(null);
-        }}
-        onSave={handleSaveOrder}
-      />
+      {orderFormOpen && (
+        <OrderFormModal
+          key={editingOrder ? `edit-${editingOrder.id}` : 'new-order'}
+          order={editingOrder}
+          recipes={data.recs}
+          isOpen={orderFormOpen}
+          onClose={() => {
+            setOrderFormOpen(false);
+            setEditingOrder(null);
+          }}
+          onSave={handleSaveOrder}
+        />
+      )}
 
       <PasteRecipeModal
         isOpen={pasteModalOpen}

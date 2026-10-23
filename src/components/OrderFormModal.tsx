@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Cake, Calendar, Clock, User, Phone, DollarSign, FileText } from 'lucide-react';
 import { Order, OrderItem, OrderStatus, Recipe } from '../types';
 import { CAKE_TYPES, CAKE_SIZES, CAKE_FLAVORS } from '../utils/orderShare';
@@ -37,6 +37,38 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
       : [{ tipo: CAKE_TYPES[0], tamanho: CAKE_SIZES[3], sabor: CAKE_FLAVORS[0], qtd: 1 }]
   );
   const [errorMsg, setErrorMsg] = useState<string>('');
+
+  // Re-synchronize form state whenever the order to edit changes or modal opens
+  useEffect(() => {
+    if (order) {
+      setCliente(order.cliente || '');
+      setTelefone(order.telefone || '');
+      setEntrega(order.entrega || todayStr);
+      setHora(order.hora || '');
+      setValor(order.valor || 0);
+      setSinal(order.sinal || 0);
+      setStatus(order.status || 'pendente');
+      setObs(order.obs || '');
+      setItens(
+        order.itens && order.itens.length > 0
+          ? order.itens.map((it) => ({ ...it }))
+          : [{ tipo: CAKE_TYPES[0], tamanho: CAKE_SIZES[3], sabor: CAKE_FLAVORS[0], qtd: 1 }]
+      );
+    } else {
+      setCliente('');
+      setTelefone('');
+      setEntrega(todayStr);
+      setHora('');
+      setValor(0);
+      setSinal(0);
+      setStatus('pendente');
+      setObs('');
+      setItens([
+        { tipo: CAKE_TYPES[0], tamanho: CAKE_SIZES[3], sabor: CAKE_FLAVORS[0], qtd: 1 },
+      ]);
+    }
+    setErrorMsg('');
+  }, [order, isOpen, todayStr]);
 
   if (!isOpen) return null;
 
@@ -309,7 +341,6 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
                               onChange={(e) => handleUpdateItem(idx, { sabor: e.target.value })}
                               placeholder="Digite o sabor ou combinação desejada..."
                               className="w-full px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-lg text-xs font-medium focus:border-amber-500 min-h-[38px]"
-                              autoFocus
                             />
                           )}
                         </div>
