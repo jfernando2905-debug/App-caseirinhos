@@ -1,10 +1,10 @@
 import React from 'react';
-import { Cake, Egg, Scale, Settings, Calendar } from 'lucide-react';
+import { Cake, Egg, Scale, Calendar, TrendingUp } from 'lucide-react';
 import { AppData } from '../types';
 
 interface NavigationProps {
-  activeTab: 'orders' | 'recs' | 'ings' | 'scale' | 'cfg';
-  onNavigate: (tab: 'orders' | 'recs' | 'ings' | 'scale' | 'cfg') => void;
+  activeTab: 'orders' | 'recs' | 'ings' | 'scale' | 'cfg' | 'dashboard';
+  onNavigate: (tab: 'orders' | 'recs' | 'ings' | 'scale' | 'cfg' | 'dashboard') => void;
   data: AppData;
 }
 
@@ -89,17 +89,17 @@ export const Navigation: React.FC<NavigationProps> = ({
 
         <button
           type="button"
-          onClick={() => onNavigate('cfg')}
+          onClick={() => onNavigate('dashboard')}
           className={`flex flex-col items-center justify-center h-full transition-all active:scale-95 min-h-[48px] rounded-xl ${
-            activeTab === 'cfg'
+            activeTab === 'dashboard'
               ? 'text-amber-400 font-bold'
               : 'text-stone-400 hover:text-stone-200'
           }`}
         >
-          <div className={`p-1 rounded-xl transition-colors ${activeTab === 'cfg' ? 'bg-amber-500/15' : ''}`}>
-            <Settings className="w-5 h-5" />
+          <div className={`p-1 rounded-xl transition-colors ${activeTab === 'dashboard' ? 'bg-amber-500/15' : ''}`}>
+            <TrendingUp className="w-5 h-5" />
           </div>
-          <span className="text-[10px] tracking-tight leading-none mt-0.5">Ajustes</span>
+          <span className="text-[10px] tracking-tight leading-none mt-0.5">Dashboard</span>
         </button>
       </div>
     </nav>

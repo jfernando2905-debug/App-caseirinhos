@@ -21,7 +21,6 @@ import { AppSettings, AppData } from '../types';
 import { formatCurrency } from '../utils/calculations';
 import { exportBackupJSON } from '../utils/storage';
 import { NumericInput } from './NumericInput';
-import { ProfitAccumulationChart } from './ProfitAccumulationChart';
 import { useAuth } from '../context/AuthContext';
 
 interface SettingsViewProps {
@@ -106,22 +105,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     <div className="space-y-6 pb-12 max-w-3xl mx-auto">
       {/* Top Banner */}
       <div>
-        <h2 className="text-2xl font-bold tracking-tight text-stone-900 font-display flex items-center gap-2">
-          <Settings className="w-6 h-6 text-amber-600" />
+        <h2 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-stone-100 font-display flex items-center gap-2">
+          <Settings className="w-6 h-6 text-amber-600 dark:text-amber-400" />
           <span>Ajustes & Parâmetros de Custo</span>
         </h2>
-        <p className="text-sm text-stone-600 mt-0.5">
-          Configure suas tarifas de gás, energia elétrica, margens padrão e visualize o lucro acumulado das encomendas.
+        <p className="text-sm text-stone-600 dark:text-stone-400 mt-0.5">
+          Configure suas tarifas de gás, energia elétrica, margem de lucro padrão e backup de dados.
         </p>
       </div>
-
-      {/* Visualização de Lucro Acumulado com Recharts */}
-      <ProfitAccumulationChart
-        orders={data.orders || []}
-        recipes={data.recs || []}
-        ingredients={data.ings || []}
-        cfg={cfg}
-      />
 
       {/* Margem Padrão */}
       <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">

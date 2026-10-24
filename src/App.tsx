@@ -15,6 +15,7 @@ import { RecipeEditor } from './components/RecipeEditor';
 import { IngredientManager } from './components/IngredientManager';
 import { BatchScaler } from './components/BatchScaler';
 import { SettingsView } from './components/SettingsView';
+import { FinancialDashboard } from './components/FinancialDashboard';
 import { PasteRecipeModal } from './components/PasteRecipeModal';
 import { PrintProductionSheet } from './components/PrintProductionSheet';
 import { AuthModal } from './components/AuthModal';
@@ -37,7 +38,7 @@ import {
 export default function App() {
   const { user } = useAuth();
   const [data, setData] = useState<AppData>(() => loadAppData());
-  const [activeTab, setActiveTab] = useState<'orders' | 'recs' | 'ings' | 'scale' | 'cfg'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'recs' | 'ings' | 'scale' | 'cfg' | 'dashboard'>('orders');
   const [activeRecipe, setActiveRecipe] = useState<Recipe | null>(null);
   const [orderFormOpen, setOrderFormOpen] = useState<boolean>(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
@@ -472,7 +473,7 @@ export default function App() {
     showToast('Receitas, encomendas e ingredientes de exemplo carregados!');
   };
 
-  const handleNavigate = (tab: 'orders' | 'recs' | 'ings' | 'scale' | 'cfg') => {
+  const handleNavigate = (tab: 'orders' | 'recs' | 'ings' | 'scale' | 'cfg' | 'dashboard') => {
     setActiveTab(tab);
     if (tab !== 'recs') {
       setActiveRecipe(null);
@@ -558,6 +559,17 @@ export default function App() {
             cfg={data.cfg}
             initialRecipeId={scalingRecipeId}
             onOpenRecipe={handleOpenRecipe}
+          />
+        )}
+
+        {activeTab === 'dashboard' && (
+          <FinancialDashboard
+            orders={data.orders || []}
+            recipes={data.recs}
+            ingredients={data.ings}
+            cfg={data.cfg}
+            onNewOrder={handleNewOrder}
+            onNavigateToOrders={() => handleNavigate('orders')}
           />
         )}
 

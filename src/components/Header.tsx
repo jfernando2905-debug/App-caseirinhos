@@ -17,6 +17,7 @@ import {
   Cake,
   Egg,
   Settings,
+  TrendingUp,
 } from 'lucide-react';
 import { AppData } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -27,8 +28,8 @@ interface HeaderProps {
   onNewOrder: () => void;
   onOpenPaste: () => void;
   onOpenAuth: () => void;
-  activeTab: 'orders' | 'recs' | 'ings' | 'scale' | 'cfg';
-  onNavigate: (tab: 'orders' | 'recs' | 'ings' | 'scale' | 'cfg') => void;
+  activeTab: 'orders' | 'recs' | 'ings' | 'scale' | 'cfg' | 'dashboard';
+  onNavigate: (tab: 'orders' | 'recs' | 'ings' | 'scale' | 'cfg' | 'dashboard') => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
 }
@@ -117,6 +118,17 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <ShoppingBag className="w-3.5 h-3.5" />
             Escalonar
+          </button>
+          <button
+            onClick={() => onNavigate('dashboard')}
+            className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'dashboard'
+                ? 'bg-stone-800 text-amber-400 font-semibold'
+                : 'text-stone-300 hover:text-white hover:bg-stone-800/60'
+            }`}
+          >
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>Dashboard</span>
           </button>
           <button
             onClick={() => onNavigate('cfg')}
@@ -524,6 +536,26 @@ export const Header: React.FC<HeaderProps> = ({
                     <ShoppingBag className="w-4 h-4" />
                     <span>Escalonar Produção</span>
                   </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onNavigate('dashboard');
+                  }}
+                  className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-medium transition-colors ${
+                    activeTab === 'dashboard'
+                      ? 'bg-stone-800 text-amber-400 font-bold border border-amber-500/40'
+                      : 'text-stone-300 hover:bg-stone-800 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-emerald-400" />
+                    <span>Dashboard Financeiro</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-900/40 font-semibold">
+                    Gráficos
+                  </span>
                 </button>
 
                 <button
