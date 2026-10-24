@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
-import { Sparkles, X, AlertCircle, Check, Loader2, BookOpen, ArrowRight, Wand2 } from 'lucide-react';
+import { Sparkles, X, AlertCircle, Check, Loader2, Wand2, Link2, PlusCircle, CheckCircle2 } from 'lucide-react';
 import { Ingredient, Recipe, ParsedRecipe, AppSettings } from '../types';
 import { parseRecipeLocally } from '../utils/localRecipeParser';
 import { formatNumber } from '../utils/calculations';
 import { uid } from '../utils/storage';
+import { findBestIngredientMatch, normalizeText } from '../utils/ingredientMatcher';
 
 interface PasteRecipeModalProps {
   isOpen: boolean;
   onClose: () => void;
   ingredients: Ingredient[];
   cfg: AppSettings;
-  onRecipeCreated: (recipe: Recipe, newIngredientsCount: number) => void;
+  onRecipeCreated: (recipe: Recipe, newIngredients: Ingredient[]) => void;
 }
 
 export const PasteRecipeModal: React.FC<PasteRecipeModalProps> = ({
@@ -27,6 +28,38 @@ export const PasteRecipeModal: React.FC<PasteRecipeModalProps> = ({
 
   if (!isOpen) return null;
 
+  // Process raw AI or local result: intelligently bind to existing ingredients if not already bound
+  const linkItemsToExisting = (rawResult: ParsedRecipe): ParsedRecipe => {
+    const enrichedItens = rawResult.itens.map((it) => {
+      // 1. If AI already provided a valid ID, check if it exists in ingredients
+      let matched = it.id ? ingredients.find((i) => i.id === it.id) : null;
+
+      // 2. If no valid match by ID, run smart fuzzy/synonym search in registered ingredients
+      if (!matched) {
+        matched = findBestIngredientMatch(it.nome, it.unidade, ingredients);
+      }
+
+      if (matched) {
+        return {
+          ...it,
+          id: matched.id,
+          nome: matched.name, // Use registered canonical name
+          unidade: (matched.unit as 'g' | 'ml' | 'un') || it.unidade,
+        };
+      }
+
+      return {
+        ...it,
+        id: null,
+      };
+    });
+
+    return {
+      ...rawResult,
+      itens: enrichedItens,
+    };
+  };
+
   const handleInterpret = async () => {
     if (!recipeText.trim()) {
       setErrorMsg('Cole o texto da receita primeiro.');
@@ -37,32 +70,39 @@ export const PasteRecipeModal: React.FC<PasteRecipeModalProps> = ({
     setErrorMsg('');
 
     try {
-      // 1. Try server Gemini API first
+      // 1. Try server Gemini API first, sending the registered ingredients list
       const response = await fetch('/api/parse-recipe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: recipeText,
-          existingIngredients: ingredients,
+          existingIngredients: ingredients.map((i) => ({
+            id: i.id,
+            name: i.name,
+            unit: i.unit,
+            category: i.category,
+          })),
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
         if (data && Array.isArray(data.itens) && data.itens.length > 0) {
-          setParsedData(data);
+          const linked = linkItemsToExisting(data);
+          setParsedData(linked);
           setLoading(false);
           return;
         }
       }
 
       // 2. If Gemini endpoint fails or is offline, use intelligent local parser
-      console.log('Using local recipe parser fallback...');
+      console.log('Using local recipe parser with ingredient deduplication...');
       const localResult = parseRecipeLocally(recipeText, ingredients);
       if (!localResult.itens.length) {
         setErrorMsg('Não foi possível identificar ingredientes no texto colado. Verifique o formato.');
       } else {
-        setParsedData(localResult);
+        const linked = linkItemsToExisting(localResult);
+        setParsedData(linked);
       }
     } catch (err: any) {
       console.warn('Network or AI error, falling back to local Portuguese recipe parser:', err);
@@ -70,43 +110,82 @@ export const PasteRecipeModal: React.FC<PasteRecipeModalProps> = ({
       if (!localResult.itens.length) {
         setErrorMsg('Erro ao interpretar: ' + (err.message || 'Formato não reconhecido'));
       } else {
-        setParsedData(localResult);
+        const linked = linkItemsToExisting(localResult);
+        setParsedData(linked);
       }
     } finally {
       setLoading(false);
     }
   };
 
+  // Change mapping of a single item in the preview table
+  const handleItemMappingChange = (index: number, selectedValue: string) => {
+    if (!parsedData) return;
+
+    const updatedItens = [...parsedData.itens];
+    const current = updatedItens[index];
+
+    if (selectedValue === '__new__') {
+      updatedItens[index] = {
+        ...current,
+        id: null,
+      };
+    } else {
+      const selectedIng = ingredients.find((i) => i.id === selectedValue);
+      if (selectedIng) {
+        updatedItens[index] = {
+          ...current,
+          id: selectedIng.id,
+          nome: selectedIng.name,
+          unidade: (selectedIng.unit as 'g' | 'ml' | 'un') || current.unidade,
+        };
+      }
+    }
+
+    setParsedData({
+      ...parsedData,
+      itens: updatedItens,
+    });
+  };
+
   const handleCreateRecipe = () => {
     if (!parsedData) return;
 
-    let newIngsCount = 0;
+    const newIngredientsCreated: Ingredient[] = [];
+
     const finalItems = parsedData.itens.map((it) => {
-      // Find matching ingredient
+      // 1. Find matching ingredient from registered catalogue
       let matched = it.id ? ingredients.find((i) => i.id === it.id) : null;
       if (!matched) {
-        matched = ingredients.find(
-          (i) => i.name.toLowerCase().trim() === it.nome.toLowerCase().trim()
+        matched = findBestIngredientMatch(it.nome, it.unidade, ingredients);
+      }
+
+      // 2. Avoid creating duplicates within this same batch
+      if (!matched) {
+        const alreadyCreatedInBatch = newIngredientsCreated.find(
+          (ni) => normalizeText(ni.name) === normalizeText(it.nome)
         );
+        if (alreadyCreatedInBatch) {
+          matched = alreadyCreatedInBatch;
+        }
       }
 
       let ingredientId = matched ? matched.id : '';
 
-      // If new, create it in state
+      // 3. If genuinely new, create it
       if (!matched) {
         const newId = uid();
         const newIng: Ingredient = {
           id: newId,
           name: it.nome,
           price: 0,
-          size: 1,
+          size: it.unidade === 'un' ? 1 : 1000,
           unit: it.unidade,
           hist: [],
-          category: 'Receita Colada',
+          category: 'Receita Importada',
         };
-        ingredients.push(newIng);
+        newIngredientsCreated.push(newIng);
         ingredientId = newId;
-        newIngsCount++;
       }
 
       return {
@@ -135,13 +214,16 @@ export const PasteRecipeModal: React.FC<PasteRecipeModalProps> = ({
       category: 'Receitas Importadas',
     };
 
-    onRecipeCreated(newRecipe, newIngsCount);
+    onRecipeCreated(newRecipe, newIngredientsCreated);
     onClose();
   };
 
+  // Sort ingredients alphabetically for the selector dropdown
+  const sortedIngredients = [...ingredients].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-stone-200 dark:border-stone-800 my-8 max-h-[90vh] flex flex-col">
+      <div className="bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-stone-200 dark:border-stone-800 my-8 max-h-[92vh] flex flex-col">
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
           <div className="flex items-center gap-2">
@@ -150,10 +232,10 @@ export const PasteRecipeModal: React.FC<PasteRecipeModalProps> = ({
             </div>
             <div>
               <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 font-display">
-                Colar Receita Inteligente
+                Colar Receita com IA
               </h3>
               <p className="text-xs text-stone-500 dark:text-stone-400">
-                Cole ingredientes e modo de preparo de qualquer site ou mensagem
+                A IA analisa o texto e busca automaticamente nos seus ingredientes já cadastrados
               </p>
             </div>
           </div>
@@ -202,24 +284,34 @@ Ingredientes:
                 </div>
               )}
 
+              <div className="bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/50 rounded-xl p-3 text-xs text-emerald-950 dark:text-emerald-300 space-y-1">
+                <p className="font-semibold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Busca Anti-Duplicidade no Catálogo ({ingredients.length} cadastrados):</span>
+                </p>
+                <p className="text-emerald-800/90 dark:text-emerald-400/90 leading-relaxed">
+                  A IA compara cada ingrediente da receita com seus ingredientes já existentes (sinônimos, marcas e singular/plural), aproveitando os preços já calculados para não criar itens repetidos.
+                </p>
+              </div>
+
               <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 rounded-xl p-3 text-xs text-amber-900 dark:text-amber-300 space-y-1">
                 <p className="font-semibold flex items-center gap-1.5">
                   <Wand2 className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
                   <span>Conversão Automática de Medidas Caseiras:</span>
                 </p>
                 <p className="text-amber-800/80 dark:text-amber-400/80">
-                  Xícaras, copos e colheres são convertidos para gramas (g) ou mililitros (ml) com densidade exata para confeitaria.
+                  Xícaras, copos e colheres são convertidos com densidade exata para gramas (g), mililitros (ml) ou unidades (un).
                 </p>
               </div>
             </>
           ) : (
             /* Parsed Preview */
             <div className="space-y-4">
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                <h4 className="text-base font-bold text-stone-900 font-display">
+              <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-xl">
+                <h4 className="text-base font-bold text-stone-900 dark:text-stone-100 font-display">
                   {parsedData.nome || 'Bolo Reconhecido'}
                 </h4>
-                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-stone-600 mt-1">
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-stone-600 dark:text-stone-300 mt-1">
                   <span>Rendimento: <strong>{formatNumber(parsedData.rendimento || 12)} fatias</strong></span>
                   <span>·</span>
                   <span>Tempo de forno: <strong>{parsedData.tempo_min || 40} min</strong></span>
@@ -229,67 +321,95 @@ Ingredientes:
               </div>
 
               <div>
-                <h5 className="text-xs font-bold text-stone-800 uppercase tracking-wider mb-2">
-                  Ingredientes Identificados ({parsedData.itens.length}):
-                </h5>
+                <div className="flex items-center justify-between mb-2">
+                  <h5 className="text-xs font-bold text-stone-800 dark:text-stone-200 uppercase tracking-wider">
+                    Ingredientes Identificados ({parsedData.itens.length}):
+                  </h5>
+                  <span className="text-[11px] text-stone-500 dark:text-stone-400">
+                    {parsedData.itens.filter((it) => it.id).length} vinculados ao estoque ·{' '}
+                    {parsedData.itens.filter((it) => !it.id).length} novos
+                  </span>
+                </div>
 
-                <div className="border border-stone-200 rounded-xl overflow-hidden text-xs">
-                  <table className="w-full text-left">
-                    <thead className="bg-stone-50 border-b border-stone-200 text-stone-600">
-                      <tr>
-                        <th className="py-2 px-3 font-semibold">Ingrediente</th>
-                        <th className="py-2 px-3 font-semibold text-right">Qtd Convertida</th>
-                        <th className="py-2 px-3 font-semibold text-center">Cadastro</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-stone-100">
-                      {parsedData.itens.map((it, idx) => {
-                        const isRegistered =
-                          (it.id && ingredients.some((i) => i.id === it.id)) ||
-                          ingredients.some(
-                            (i) => i.name.toLowerCase().trim() === it.nome.toLowerCase().trim()
+                <div className="border border-stone-200 dark:border-stone-700 rounded-xl overflow-hidden text-xs">
+                  <div className="max-h-72 overflow-y-auto">
+                    <table className="w-full text-left">
+                      <thead className="bg-stone-50 dark:bg-stone-800 sticky top-0 border-b border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 z-10">
+                        <tr>
+                          <th className="py-2.5 px-3 font-semibold">Ingrediente da Receita</th>
+                          <th className="py-2.5 px-3 font-semibold text-right">Qtd</th>
+                          <th className="py-2.5 px-3 font-semibold">Vínculo com Estoque</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-stone-100 dark:divide-stone-800">
+                        {parsedData.itens.map((it, idx) => {
+                          const matchedIng = it.id ? ingredients.find((i) => i.id === it.id) : null;
+
+                          return (
+                            <tr key={idx} className="hover:bg-stone-50 dark:hover:bg-stone-800/50">
+                              <td className="py-2.5 px-3">
+                                <div className="font-medium text-stone-900 dark:text-stone-100">{it.nome}</div>
+                                {matchedIng && (
+                                  <div className="text-[10px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
+                                    <Link2 className="w-2.5 h-2.5 shrink-0" />
+                                    <span>Cadastrado como: <strong>{matchedIng.name}</strong></span>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 text-right tabular-nums font-semibold text-amber-900 dark:text-amber-300 whitespace-nowrap">
+                                {formatNumber(it.qtd)} {it.unidade}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <select
+                                  value={it.id || '__new__'}
+                                  onChange={(e) => handleItemMappingChange(idx, e.target.value)}
+                                  className={`w-full max-w-xs text-xs py-1 px-2 rounded-lg border font-medium transition-colors ${
+                                    it.id
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                                      : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300'
+                                  }`}
+                                >
+                                  {matchedIng && (
+                                    <option value={matchedIng.id}>
+                                      ✓ {matchedIng.name} (já no estoque)
+                                    </option>
+                                  )}
+                                  <option value="__new__">+ Criar como Novo Ingrediente</option>
+                                  <optgroup label="Vincular a ingrediente existente:">
+                                    {sortedIngredients.map((ing) => (
+                                      <option key={ing.id} value={ing.id}>
+                                        {ing.name} ({ing.unit})
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                </select>
+                              </td>
+                            </tr>
                           );
-
-                        return (
-                          <tr key={idx} className="hover:bg-stone-50">
-                            <td className="py-2 px-3 font-medium text-stone-900">{it.nome}</td>
-                            <td className="py-2 px-3 text-right tabular-nums font-semibold text-amber-900">
-                              {formatNumber(it.qtd)} {it.unidade}
-                            </td>
-                            <td className="py-2 px-3 text-center">
-                              {isRegistered ? (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-                                  <Check className="w-3 h-3" />
-                                  Já no estoque
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
-                                  Novo (sem preço)
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
 
-              <p className="text-[11px] text-stone-500">
-                Ingredientes novos serão criados no seu catálogo. Você poderá preencher o preço pago deles a qualquer momento na aba Ingredientes.
-              </p>
+              <div className="bg-stone-50 dark:bg-stone-800/60 p-3 rounded-xl border border-stone-200 dark:border-stone-700 text-[11px] text-stone-500 dark:text-stone-400 flex items-start gap-2">
+                <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <span>
+                  Ingredientes vinculados reaproveitam o preço de compra e custos já existentes. Novos ingredientes serão criados sem duplicar os existentes.
+                </span>
+              </div>
             </div>
           )}
         </div>
 
         {/* Modal Actions */}
-        <div className="flex items-center justify-between gap-3 pt-3 border-t border-stone-100">
+        <div className="flex items-center justify-between gap-3 pt-3 border-t border-stone-100 dark:border-stone-800">
           {!parsedData ? (
             <>
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl transition-colors min-h-[42px]"
+                className="px-4 py-2 text-xs font-semibold text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-colors min-h-[42px]"
               >
                 Cancelar
               </button>
@@ -301,7 +421,7 @@ Ingredientes:
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Interpretando receita...</span>
+                    <span>Buscando no cadastro e interpretando...</span>
                   </>
                 ) : (
                   <>
@@ -315,7 +435,7 @@ Ingredientes:
             <>
               <button
                 onClick={() => setParsedData(null)}
-                className="px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl transition-colors min-h-[42px]"
+                className="px-4 py-2 text-xs font-semibold text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-colors min-h-[42px]"
               >
                 Voltar e Colar Outra
               </button>

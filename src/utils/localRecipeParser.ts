@@ -1,4 +1,5 @@
 import { Ingredient, ParsedRecipe, ParsedRecipeItem } from '../types';
+import { findBestIngredientMatch } from './ingredientMatcher';
 
 /**
  * Portuguese kitchen measurement conversions based on standard Brazilian culinary densities
@@ -207,13 +208,13 @@ export function parseRecipeLocally(text: string, existingIngredients: Ingredient
       // Convert kitchen measures
       const converted = convertKitchenMeasure(ingredientName, numericQty, rawUnit);
 
-      // Match against existing registered ingredients
-      const matchedIng = findExistingIngredientMatch(ingredientName, existingIngredients);
+      // Match against existing registered ingredients intelligently
+      const matchedIng = findBestIngredientMatch(ingredientName, converted.unit, existingIngredients);
 
       itens.push({
         nome: matchedIng ? matchedIng.name : capitalize(ingredientName),
         qtd: converted.qty,
-        unidade: converted.unit,
+        unidade: matchedIng?.unit ? (matchedIng.unit as 'g' | 'ml' | 'un') : converted.unit,
         id: matchedIng ? matchedIng.id : null,
       });
     }
@@ -226,19 +227,6 @@ export function parseRecipeLocally(text: string, existingIngredients: Ingredient
     temp,
     itens,
   };
-}
-
-function findExistingIngredientMatch(name: string, list: Ingredient[]): Ingredient | undefined {
-  const norm = name.toLowerCase().trim();
-  // Exact match
-  const exact = list.find((i) => i.name.toLowerCase().trim() === norm);
-  if (exact) return exact;
-
-  // Partial substring match
-  return list.find((i) => {
-    const iNorm = i.name.toLowerCase().trim();
-    return norm.includes(iNorm) || iNorm.includes(norm);
-  });
 }
 
 function capitalize(str: string): string {

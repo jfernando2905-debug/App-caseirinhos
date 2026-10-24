@@ -232,7 +232,7 @@ export const OrderPreviewModal: React.FC<OrderPreviewModalProps> = ({
                   <div className="flex items-center gap-2">
                     <span className="text-xl">🍰</span>
                     <h3 className="text-lg font-black tracking-tight text-stone-900 font-display">
-                      Custo de Receitas
+                      Caseirinhos Fer&Dre
                     </h3>
                   </div>
                   <p className="text-xs text-stone-500 font-medium">

@@ -312,7 +312,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="pt-2 border-t border-stone-100 dark:border-stone-800 flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500 dark:text-stone-400">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="font-medium text-stone-700 dark:text-stone-300">Banco na Nuvem:</span>
-            <span className="font-semibold text-stone-800 dark:text-stone-200">Custo de Receitas</span>
+            <span className="font-semibold text-stone-800 dark:text-stone-200">Caseirinhos Fer&Dre</span>
             <span className="text-[11px] text-stone-400 font-mono">(ID Cloud: {projectId || 'neural-block-ldckx'})</span>
           </div>
           <div className="flex items-center gap-3">

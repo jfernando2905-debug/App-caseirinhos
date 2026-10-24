@@ -398,28 +398,36 @@ export default function App() {
   };
 
   // Paste Recipe callback
-  const handleRecipeCreatedFromPaste = (recipe: Recipe, newIngsCount: number) => {
+  const handleRecipeCreatedFromPaste = (recipe: Recipe, newIngredients: Ingredient[]) => {
     setData((prev) => ({
       ...prev,
       recs: [recipe, ...prev.recs],
+      ings: newIngredients.length > 0 ? [...prev.ings, ...newIngredients] : prev.ings,
     }));
 
     if (user) {
       saveCloudRecipe(user.uid, recipe).catch((err) =>
         console.error('Error saving imported recipe to cloud:', err)
       );
+      if (newIngredients.length > 0) {
+        newIngredients.forEach((ing) => {
+          saveCloudIngredient(user.uid, ing).catch((err) =>
+            console.error('Error saving new ingredient from recipe to cloud:', err)
+          );
+        });
+      }
     }
 
     setActiveRecipe(recipe);
     setActiveTab('recs');
 
-    if (newIngsCount > 0) {
+    if (newIngredients.length > 0) {
       showToast(
-        `Receita criada! ${newIngsCount} novo(s) ingrediente(s) adicionados sem preço. Preencha na aba Ingredientes.`,
+        `Receita criada! ${newIngredients.length} novo(s) ingrediente(s) adicionados ao catálogo. Preencha o preço deles na aba Ingredientes.`,
         'info'
       );
     } else {
-      showToast('Receita importada e criada com sucesso!');
+      showToast('Receita criada! Todos os ingredientes foram vinculados aos já cadastrados.');
     }
   };
 

@@ -63,7 +63,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           <div className="min-w-0">
             <h1 className="text-base sm:text-lg font-bold tracking-tight text-white font-display leading-tight truncate">
-              Custo de Receitas
+              Caseirinhos Fer&Dre
             </h1>
             <p className="text-[10px] sm:text-[11px] text-stone-400 font-normal leading-none hidden sm:block">
               Encomendas & Confeitaria Caseira
@@ -309,7 +309,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <ChefHat className="w-4 h-4" />
                   </div>
                   <div>
-                    <h2 className="text-base font-bold text-white font-display">Custo de Receitas</h2>
+                    <h2 className="text-base font-bold text-white font-display">Caseirinhos Fer&Dre</h2>
                     <p className="text-[10px] text-stone-400">Menu Principal</p>
                   </div>
                 </div>
@@ -547,7 +547,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Drawer Footer */}
             <div className="pt-4 border-t border-stone-800 flex items-center justify-between text-[11px] text-stone-400">
-              <span>Custo de Receitas</span>
+              <span>Caseirinhos Fer&Dre</span>
               <button
                 onClick={() => onToggleTheme()}
                 className="flex items-center gap-1.5 text-stone-300 hover:text-white"

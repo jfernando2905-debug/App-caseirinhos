@@ -84,7 +84,7 @@ export const PrintProductionSheet: React.FC<PrintProductionSheetProps> = ({
             </div>
             <div className="text-right text-xs text-stone-500">
               <p>Data de emissão: {new Date().toLocaleDateString('pt-BR')}</p>
-              <p className="font-semibold text-stone-800">Custo de Receitas</p>
+              <p className="font-semibold text-stone-800">Caseirinhos Fer&Dre</p>
             </div>
           </div>
 

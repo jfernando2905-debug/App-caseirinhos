@@ -57,7 +57,7 @@ export function generateRecipePdf(
     doc.setFontSize(isFirstPage ? 8.5 : 8);
     doc.setTextColor(120, 110, 100);
     doc.text(
-      'Custo de Receitas · Precificação & Engenharia de Cardápio',
+      'Caseirinhos Fer&Dre · Precificação & Engenharia de Cardápio',
       margin + 7,
       y + (isFirstPage ? 16 : 11)
     );
@@ -403,7 +403,7 @@ export function generateRecipePdf(
     doc.setFontSize(7.5);
     doc.setTextColor(150, 140, 135);
     doc.text(
-      `Ficha Técnica: ${recipe.name || 'Bolo'} · Custo de Receitas Confeitaria`,
+      `Ficha Técnica: ${recipe.name || 'Bolo'} · Caseirinhos Fer&Dre`,
       margin,
       pageHeight - 7
     );

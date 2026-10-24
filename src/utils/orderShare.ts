@@ -150,7 +150,7 @@ export const generateOrderPdf = (order: Order): void => {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(120, 100, 90);
-  doc.text('Custo de Receitas & Confeitaria', margin + 6, y + 15);
+  doc.text('Caseirinhos Fer&Dre · Confeitaria Caseira', margin + 6, y + 15);
 
   const statusLabel = order.status.toUpperCase();
   doc.setFont('helvetica', 'bold');
@@ -488,7 +488,7 @@ export const generateOrdersReportPdf = (orders: Order[], filterLabel = 'Todas'):
     doc.setFontSize(7.5);
     doc.setTextColor(150, 140, 135);
     doc.text(
-      `Relatório de Encomendas (${filterLabel}) · Custo de Receitas`,
+      `Relatório de Encomendas (${filterLabel}) · Caseirinhos Fer&Dre`,
       margin,
       pageHeight - 7
     );

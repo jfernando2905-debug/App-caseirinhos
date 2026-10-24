@@ -46,38 +46,52 @@ async function startServer() {
         });
       }
 
-      const prompt = `Você é um confeiteiro e analista de receitas para cálculo de custos.
-Analise o texto da receita abaixo e extraia os dados estritamente em formato JSON.
+      const prompt = `Você é um confeiteiro especialista e analista de ficha técnica para cálculo de custos.
+Analise a receita abaixo e extraia as informações em formato JSON.
 
-Lista de ingredientes já cadastrados no app:
+REQUISITO PRINCIPAL - BUSCA E REAPROVEITAMENTO DOS INGREDIENTES JÁ CADASTRADOS (NÃO DUPLICAR):
+O confeiteiro já possui estes ingredientes cadastrados com custos calculados:
 ${JSON.stringify(existingIngredients.map((i: any) => ({ id: i.id, name: i.name, unit: i.unit })))}
 
-Regras essenciais:
-1. "nome": nome do bolo ou da receita.
-2. "rendimento": número de fatias ou porções estimadas (ex: 12). Se não especificado, use 12 ou 1.
-3. "tempo_min": tempo de forno ou cozimento em minutos (número inteiro). Se houver faixa (ex: 40-50 min), use a média (45).
-4. "temp": temperatura de forno em Celsius (ex: "180" ou "180-200").
-5. "itens": array de ingredientes com:
-   - "nome": nome padronizado do ingrediente (ex: "Farinha de trigo", "Açúcar cristal", "Ovos", "Manteiga", "Leite integral")
-   - "qtd": quantidade numérica positiva
-   - "unidade": SOMENTE "g", "ml" ou "un".
-   - "id": id do ingrediente existente se corresponder a um da lista acima, ou null se for novo.
-6. CONVERSÕES OBRIGATÓRIAS de medidas caseiras:
+Para CADA ingrediente mencionado na receita:
+1. BUSCA OBRIGATÓRIA NO CADASTRO: Busque ativamente na lista de ingredientes cadastrados acima se já existe o mesmo ingrediente ou correspondente similar.
+   Considere sinônimos, marcas, variações de singular/plural e termos equivalentes:
+   - "3 ovos", "claras", "gemas" -> vincule ao ingrediente cadastrado "Ovo", "Ovos", "Ovo Branco" etc. (use a unidade "un").
+   - "farinha de trigo", "trigo", "farinha" -> vincule a "Farinha de Trigo", "Farinha Especial", etc. (use unidade "g").
+   - "açúcar refinado", "açúcar cristal", "açúcar" -> vincule ao tipo de açúcar cadastrado (use unidade "g").
+   - "leite", "leite integral" -> vincule ao leite cadastrado (use unidade "ml").
+   - "manteiga", "margarina" -> se houver manteiga ou margarina cadastrada, vincule.
+   - "fermento em pó", "fermento químico" -> vincule ao fermento cadastrado.
+   - "cacau em pó", "chocolate em pó", "nescau" -> vincule ao correspondente cadastrado.
+   - "leite condensado", "creme de leite", "óleo" -> vincule ao correspondente cadastrado.
+
+2. QUANDO ENCONTRAR CORRESPONDÊNCIA NA LISTA DE CADASTRADOS:
+   - "id": OBRIGATORIAMENTE preencha com o "id" do ingrediente existente.
+   - "nome": OBRIGATORIAMENTE use o NOME EXATO do ingrediente cadastrado.
+   - "unidade": use a unidade cadastrada ("g", "ml" ou "un") e converta a quantidade ("qtd") para essa unidade.
+
+3. SOMENTE SE FOR UM INGREDIENTE TOTALMENTE INÉDITO (sem similar na lista):
+   - "id": null
+   - "nome": nome padronizado no singular (ex: "Noz-moscada", "Canela em pó").
+   - "unidade": "g", "ml" ou "un".
+
+4. CONVERSÕES OBRIGATÓRIAS de medidas caseiras:
    - 1 xícara de farinha de trigo ≈ 120 g
    - 1 xícara de açúcar ≈ 180 g
    - 1 xícara de líquidos (óleo, leite, água, suco) ≈ 240 ml
    - 1 xícara de chocolate em pó / cacau ≈ 90 g
    - 1 xícara de amido de milho ≈ 100 g
-   - 1 colher de sopa de fermento ≈ 15 g
-   - 1 colher de sopa rasa de manteiga ≈ 15 g / cheia ≈ 20 g
+   - 1 xícara de fubá ≈ 130 g
+   - 1 colher de sopa de fermento ≈ 14 g
+   - 1 colher de sopa de manteiga / margarina ≈ 15 g
+   - 1 colher de sopa de açúcar ou farinha ≈ 15 g
    - 1 colher de sopa de líquido ≈ 15 ml
    - 1 colher de chá ≈ 5 g / 5 ml
    - 1 lata / caixa de leite condensado ≈ 395 g
    - 1 caixa de creme de leite ≈ 200 g
    - 1 vidro de leite de coco ≈ 200 ml
-   - Ovos: sempre unidade ("un")
-   - kg convertidos para g (1 kg = 1000 g), L convertidos para ml (1 L = 1000 ml)
-7. Ignore ingredientes sem quantidade ou decorações opcionais genéricas se não puder quantificar.
+   - Ovos: sempre quantidade em unidades ("un")
+   - kg convertidos para g (1 kg = 1000 g), L para ml (1 L = 1000 ml)
 
 RECEITA:
 ${text}
@@ -89,7 +103,7 @@ Responda APENAS com JSON no formato:
   "tempo_min": 40,
   "temp": "180",
   "itens": [
-    { "nome": "string", "qtd": 100, "unidade": "g", "id": "id_ou_null" }
+    { "nome": "string", "qtd": 100, "unidade": "g", "id": "id_existente_ou_null" }
   ]
 }`;
 
@@ -98,7 +112,7 @@ Responda APENAS com JSON no formato:
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
-          temperature: 0.2,
+          temperature: 0.1,
         },
       });
 
@@ -138,7 +152,7 @@ Responda APENAS com JSON no formato:
   }
 
   httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`Custo de Receitas server listening on port ${PORT}`);
+    console.log(`Caseirinhos Fer&Dre server listening on port ${PORT}`);
   });
 }
 

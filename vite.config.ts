@@ -17,8 +17,8 @@ export default defineConfig(() => {
         includeAssets: ['apple-touch-icon.png', 'icon.svg'],
         manifest: {
           id: '/',
-          name: 'Custo de Receitas - Confeitaria',
-          short_name: 'CustoReceita',
+          name: 'Caseirinhos Fer&Dre - Encomendas & Confeitaria',
+          short_name: 'Fer&Dre',
           description: 'Calculadora de custo e preço de venda de bolos, confeitaria e controle de encomendas.',
           theme_color: '#d97706',
           background_color: '#1c1917',
