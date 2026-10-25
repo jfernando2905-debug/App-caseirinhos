@@ -572,6 +572,7 @@ export default function App() {
           <BatchScaler
             recipes={data.recs}
             ingredients={data.ings}
+            orders={data.orders || []}
             cfg={data.cfg}
             initialRecipeId={scalingRecipeId}
             onOpenRecipe={handleOpenRecipe}
