@@ -78,6 +78,8 @@ service cloud.firestore {
         (!('telefone' in data) || (data.telefone is string && data.telefone.size() <= 32)) &&
         (!('hora' in data) || (data.hora is string && data.hora.size() <= 16)) &&
         (!('sinal' in data) || (data.sinal is number && data.sinal >= 0)) &&
+        (!('pago' in data) || (data.pago is bool)) &&
+        (!('pagoEm' in data) || (data.pagoEm is number)) &&
         (!('itens' in data) || (data.itens is list && data.itens.size() <= 50)) &&
         (!('obs' in data) || (data.obs is string && data.obs.size() <= 2000)) &&
         (!('criadoEm' in data) || (data.criadoEm is number)) &&

@@ -206,6 +206,14 @@
           "description": "Order progression status",
           "enum": ["pendente", "pronto", "entregue"]
         },
+        "pago": {
+          "type": "boolean",
+          "description": "Whether the order payment was completed"
+        },
+        "pagoEm": {
+          "type": "number",
+          "description": "Timestamp when payment was marked as completed"
+        },
         "itens": {
           "type": "array",
           "description": "Line items with cake name, size and price"

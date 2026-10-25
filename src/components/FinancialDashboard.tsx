@@ -31,10 +31,18 @@ import {
   ArrowUpRight,
   Receipt,
   Sparkles,
+  Wallet,
+  Check,
+  Clock,
+  MessageCircle,
+  Phone,
+  AlertCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import { Order, Recipe, Ingredient, AppSettings } from '../types';
 import { getMonthlyProfitHistory, calculateOrderCostAndProfit, MonthlyProfitData } from '../utils/orderMetrics';
 import { formatCurrency, formatNumber } from '../utils/calculations';
+import { formatPaymentReminderWhatsApp, formatDatePtBR, formatItemText } from '../utils/orderShare';
 
 interface FinancialDashboardProps {
   orders: Order[];
@@ -43,6 +51,8 @@ interface FinancialDashboardProps {
   cfg: AppSettings;
   onNewOrder: () => void;
   onNavigateToOrders: () => void;
+  onUpdatePayment?: (orderId: string, pago: boolean) => void;
+  onToast?: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 const STATUS_COLORS = {
@@ -58,9 +68,13 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
   cfg,
   onNewOrder,
   onNavigateToOrders,
+  onUpdatePayment,
+  onToast,
 }) => {
   const [chartType, setChartType] = useState<'area' | 'bar'>('area');
   const [showMonthlyTable, setShowMonthlyTable] = useState<boolean>(true);
+  const [receberFilter, setReceberFilter] = useState<'todas' | 'entregues' | 'abertas'>('todas');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // 1. Calculate overall financial metrics
   const {
@@ -73,6 +87,12 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
     ticketMedio,
     statusCounts,
     statusValues,
+    totalAReceber,
+    aReceberEntregues,
+    aReceberAbertas,
+    totalRecebidoCaixa,
+    unpaidOrdersCount,
+    unpaidEntreguesCount,
   } = useMemo(() => {
     let faturamento = 0;
     let fatEntregue = 0;
@@ -80,11 +100,21 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
     let custoTotal = 0;
     let lucroTotal = 0;
 
+    let totAReceber = 0;
+    let recEntregues = 0;
+    let recAbertas = 0;
+    let totRecebidoCaixa = 0;
+    let unpCount = 0;
+    let unpEntregues = 0;
+
     const counts = { pendente: 0, pronto: 0, entregue: 0 };
     const values = { pendente: 0, pronto: 0, entregue: 0 };
 
     for (const order of orders) {
       const val = order.valor || 0;
+      const sin = order.sinal || 0;
+      const restante = Math.max(0, val - sin);
+
       faturamento += val;
 
       const st = order.status || 'pendente';
@@ -95,6 +125,22 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
         fatEntregue += val;
       } else {
         fatAberto += val;
+      }
+
+      if (order.pago) {
+        totRecebidoCaixa += val;
+      } else {
+        totRecebidoCaixa += sin;
+        if (restante > 0) {
+          totAReceber += restante;
+          unpCount++;
+          if (st === 'entregue') {
+            recEntregues += restante;
+            unpEntregues++;
+          } else {
+            recAbertas += restante;
+          }
+        }
       }
 
       const { cost, profit } = calculateOrderCostAndProfit(order, recipes, ingredients, cfg);
@@ -115,8 +161,57 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
       ticketMedio: ticket,
       statusCounts: counts,
       statusValues: values,
+      totalAReceber: totAReceber,
+      aReceberEntregues: recEntregues,
+      aReceberAbertas: recAbertas,
+      totalRecebidoCaixa: totRecebidoCaixa,
+      unpaidOrdersCount: unpCount,
+      unpaidEntreguesCount: unpEntregues,
     };
   }, [orders, recipes, ingredients, cfg]);
+
+  // Unpaid orders list
+  const unpaidOrders = useMemo(() => {
+    return orders.filter((o) => {
+      const val = o.valor || 0;
+      const sin = o.sinal || 0;
+      const restante = Math.max(0, val - sin);
+      return !o.pago && val > 0 && restante > 0;
+    });
+  }, [orders]);
+
+  const filteredUnpaidOrders = useMemo(() => {
+    if (receberFilter === 'entregues') {
+      return unpaidOrders.filter((o) => o.status === 'entregue');
+    }
+    if (receberFilter === 'abertas') {
+      return unpaidOrders.filter((o) => o.status !== 'entregue');
+    }
+    return unpaidOrders;
+  }, [unpaidOrders, receberFilter]);
+
+  const handleBaixarPagamento = (order: Order) => {
+    if (onUpdatePayment) {
+      onUpdatePayment(order.id, true);
+    }
+  };
+
+  const handleCobrarWhatsApp = (order: Order) => {
+    const text = formatPaymentReminderWhatsApp(order);
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(order.id);
+      setTimeout(() => setCopiedId(null), 3000);
+      if (onToast) {
+        onToast('Mensagem de lembrete de pagamento copiada! Cole no WhatsApp.');
+      }
+    });
+
+    if (order.telefone) {
+      const cleanPhone = order.telefone.replace(/\D/g, '');
+      const fullPhone = cleanPhone.length <= 11 ? `55${cleanPhone}` : cleanPhone;
+      window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(text)}`, '_blank');
+    }
+  };
 
   // 2. Monthly historical series for Recharts
   const monthlyData: MonthlyProfitData[] = useMemo(() => {
@@ -253,8 +348,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
         </div>
       </div>
 
-      {/* 4 Main Financial KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* 5 Main Financial KPI Cards (including A Receber) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {/* Card 1: Faturamento Total */}
         <div className="bg-white dark:bg-stone-900 border border-amber-200/70 dark:border-amber-900/40 rounded-2xl p-4 shadow-xs relative overflow-hidden flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2">
@@ -269,18 +364,41 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
             <b className="text-xl sm:text-2xl font-black text-amber-700 dark:text-amber-400 block font-display tabular-nums">
               {formatCurrency(totalFaturamento)}
             </b>
-            <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-1 flex flex-wrap gap-x-2">
+            <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">
               <span className="text-emerald-700 dark:text-emerald-400 font-medium">
-                {formatCurrency(faturamentoEntregue)} entregue
+                {formatCurrency(totalRecebidoCaixa)} em caixa
               </span>
-              {faturamentoEmAberto > 0 && (
-                <span>• {formatCurrency(faturamentoEmAberto)} aberto</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: A Receber (NOVO) */}
+        <div className="bg-white dark:bg-stone-900 border border-amber-300 dark:border-amber-700/80 rounded-2xl p-4 shadow-xs relative overflow-hidden flex flex-col justify-between bg-gradient-to-br from-white to-amber-50/30 dark:from-stone-900 dark:to-amber-950/20">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-amber-900 dark:text-amber-300">
+              A Receber
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 flex items-center justify-center">
+              <Wallet className="w-4 h-4" />
+            </div>
+          </div>
+          <div>
+            <b className="text-xl sm:text-2xl font-black text-amber-800 dark:text-amber-300 block font-display tabular-nums">
+              {formatCurrency(totalAReceber)}
+            </b>
+            <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">
+              {aReceberEntregues > 0 ? (
+                <span className="text-rose-600 dark:text-rose-400 font-semibold">
+                  {formatCurrency(aReceberEntregues)} já entregues
+                </span>
+              ) : (
+                <span>{unpaidOrdersCount} pedido(s) a receber</span>
               )}
             </div>
           </div>
         </div>
 
-        {/* Card 2: Lucro Líquido Estimado */}
+        {/* Card 3: Lucro Líquido Estimado */}
         <div className="bg-white dark:bg-stone-900 border border-emerald-200/70 dark:border-emerald-900/40 rounded-2xl p-4 shadow-xs relative overflow-hidden flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-stone-600 dark:text-stone-400">
@@ -295,7 +413,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
               {formatCurrency(lucroLiquidoEstimado)}
             </b>
             <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-1 flex items-center gap-1.5">
-              <span>Custos estimados:</span>
+              <span>Custos:</span>
               <strong className="text-stone-700 dark:text-stone-300 tabular-nums">
                 {formatCurrency(totalCustoEstimado)}
               </strong>
@@ -303,11 +421,11 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
           </div>
         </div>
 
-        {/* Card 3: Margem Média */}
+        {/* Card 4: Margem Média */}
         <div className="bg-white dark:bg-stone-900 border border-sky-200/70 dark:border-sky-900/40 rounded-2xl p-4 shadow-xs relative overflow-hidden flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-stone-600 dark:text-stone-400">
-              Margem de Lucro Média
+              Margem Média
             </span>
             <div className="w-7 h-7 rounded-lg bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-400 flex items-center justify-center">
               <Percent className="w-4 h-4" />
@@ -318,16 +436,16 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
               {margemMediaGeral}%
             </b>
             <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">
-              Ticket Médio: <strong className="text-stone-700 dark:text-stone-300">{formatCurrency(ticketMedio)}</strong>
+              Ticket: <strong className="text-stone-700 dark:text-stone-300">{formatCurrency(ticketMedio)}</strong>
             </div>
           </div>
         </div>
 
-        {/* Card 4: Total de Encomendas */}
-        <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 shadow-xs relative overflow-hidden flex flex-col justify-between">
+        {/* Card 5: Total de Encomendas */}
+        <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 shadow-xs relative overflow-hidden flex flex-col justify-between col-span-2 sm:col-span-1">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-stone-600 dark:text-stone-400">
-              Total de Encomendas
+              Total Encomendas
             </span>
             <div className="w-7 h-7 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 flex items-center justify-center">
               <PackageCheck className="w-4 h-4" />
@@ -337,13 +455,13 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
             <b className="text-xl sm:text-2xl font-black text-stone-900 dark:text-stone-100 block font-display tabular-nums">
               {orders.length}
             </b>
-            <div className="flex items-center gap-2 mt-1 text-[11px]">
-              <span className="text-amber-700 dark:text-amber-400 font-semibold">
-                {statusCounts.pendente} pendentes
-              </span>
-              <span>•</span>
+            <div className="flex items-center gap-1.5 mt-1 text-[11px]">
               <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
                 {statusCounts.entregue} entregues
+              </span>
+              <span>•</span>
+              <span className="text-amber-700 dark:text-amber-400 font-semibold">
+                {statusCounts.pendente} pend.
               </span>
             </div>
           </div>
@@ -595,6 +713,175 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Contas a Receber & Baixa de Pagamentos */}
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-100 dark:border-stone-800">
+          <div>
+            <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 font-display flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              <span>Contas a Receber & Baixa de Pagamentos</span>
+            </h3>
+            <p className="text-xs text-stone-500 dark:text-stone-400">
+              Gerencie recebimentos pendentes, envie lembretes por WhatsApp e dê baixa imediata.
+            </p>
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 p-1 rounded-xl text-xs font-semibold self-start sm:self-auto">
+            <button
+              onClick={() => setReceberFilter('todas')}
+              className={`px-3 py-1.5 rounded-lg transition-colors min-h-[32px] ${
+                receberFilter === 'todas'
+                  ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-2xs font-bold'
+                  : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+              }`}
+            >
+              Todas a Receber ({unpaidOrders.length})
+            </button>
+            <button
+              onClick={() => setReceberFilter('entregues')}
+              className={`px-3 py-1.5 rounded-lg transition-colors min-h-[32px] flex items-center gap-1.5 ${
+                receberFilter === 'entregues'
+                  ? 'bg-rose-600 text-white shadow-2xs font-bold'
+                  : 'text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+              }`}
+            >
+              <span>Entregues a Cobrar</span>
+              {unpaidEntreguesCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded bg-white/20 text-[10px] font-bold">
+                  {unpaidEntreguesCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setReceberFilter('abertas')}
+              className={`px-3 py-1.5 rounded-lg transition-colors min-h-[32px] ${
+                receberFilter === 'abertas'
+                  ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-2xs font-bold'
+                  : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+              }`}
+            >
+              Encomendas Abertas ({unpaidOrders.length - unpaidEntreguesCount})
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        {filteredUnpaidOrders.length === 0 ? (
+          <div className="py-8 text-center bg-stone-50 dark:bg-stone-800/40 rounded-xl border border-dashed border-stone-200 dark:border-stone-800">
+            <CheckCircle className="w-9 h-9 text-emerald-500 mx-auto mb-2" />
+            <h4 className="text-sm font-bold text-stone-800 dark:text-stone-200">
+              {unpaidOrders.length === 0
+                ? 'Todos os pagamentos estão quitados!'
+                : 'Nenhum pagamento pendente neste filtro.'}
+            </h4>
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 max-w-sm mx-auto">
+              {unpaidOrders.length === 0
+                ? 'Parabéns! Todas as encomendas registradas foram pagas pelos clientes.'
+                : 'Alterne o filtro acima para ver as demais encomendas a receber.'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {filteredUnpaidOrders.map((order) => {
+              const val = order.valor || 0;
+              const sin = order.sinal || 0;
+              const restante = Math.max(0, val - sin);
+              const isEntregue = order.status === 'entregue';
+
+              return (
+                <div
+                  key={order.id}
+                  className={`p-3.5 sm:p-4 rounded-xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+                    isEntregue
+                      ? 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/60'
+                      : 'bg-white dark:bg-stone-800/60 border-stone-200 dark:border-stone-800'
+                  }`}
+                >
+                  {/* Left: Info */}
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <strong className="text-sm font-bold text-stone-900 dark:text-stone-100">
+                        {order.cliente}
+                      </strong>
+
+                      {/* Status Badge */}
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                          isEntregue
+                            ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+                            : order.status === 'pronto'
+                            ? 'bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 border border-sky-300 dark:border-sky-800'
+                            : 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                        }`}
+                      >
+                        {isEntregue ? 'Entregue (Aguardando Pagamento)' : order.status}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-stone-500 dark:text-stone-400 flex items-center gap-3 flex-wrap">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {formatDatePtBR(order.entrega)} {order.hora ? `às ${order.hora}` : ''}
+                      </span>
+                      {order.telefone && (
+                        <span className="flex items-center gap-1">
+                          <Phone className="w-3.5 h-3.5" />
+                          {order.telefone}
+                        </span>
+                      )}
+                      <span>·</span>
+                      <span className="truncate max-w-xs text-stone-600 dark:text-stone-300">
+                        {order.itens.map((it) => `${it.qtd}× ${it.sabor || it.tipo}`).join(', ')}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Right: Values and Direct Action Buttons */}
+                  <div className="flex items-center justify-between md:justify-end gap-3 pt-2 md:pt-0 border-t md:border-t-0 border-stone-100 dark:border-stone-800">
+                    <div className="text-left md:text-right pr-2">
+                      <span className="text-[11px] text-stone-500 dark:text-stone-400 block">
+                        A Receber:
+                      </span>
+                      <strong className="text-base sm:text-lg font-black text-amber-900 dark:text-amber-300 tabular-nums">
+                        {formatCurrency(restante)}
+                      </strong>
+                      <span className="text-[10px] text-stone-500 dark:text-stone-400 block">
+                        Total {formatCurrency(val)} {sin > 0 ? `(sinal ${formatCurrency(sin)})` : ''}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleCobrarWhatsApp(order)}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 rounded-xl transition-colors min-h-[38px]"
+                        title="Enviar ou copiar lembrete de cobrança para WhatsApp"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span className="hidden sm:inline">
+                          {copiedId === order.id ? 'Copiado!' : 'Cobrar WhatsApp'}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleBaixarPagamento(order)}
+                        className="flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl shadow-xs transition-all active:scale-95 min-h-[38px]"
+                        title="Confirmar recebimento do pagamento e dar baixa"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>Dar Baixa</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Monthly Financial Breakdown Table */}

@@ -30,6 +30,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
   const [valor, setValor] = useState<number>(order ? order.valor || 0 : 0);
   const [sinal, setSinal] = useState<number>(order ? order.sinal || 0 : 0);
   const [status, setStatus] = useState<OrderStatus>(order ? order.status : 'pendente');
+  const [pago, setPago] = useState<boolean>(order ? !!order.pago : false);
   const [obs, setObs] = useState<string>(order ? order.obs || '' : '');
   const [itens, setItens] = useState<OrderItem[]>(
     order && order.itens && order.itens.length > 0
@@ -48,6 +49,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
       setValor(order.valor || 0);
       setSinal(order.sinal || 0);
       setStatus(order.status || 'pendente');
+      setPago(!!order.pago);
       setObs(order.obs || '');
       setItens(
         order.itens && order.itens.length > 0
@@ -62,6 +64,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
       setValor(0);
       setSinal(0);
       setStatus('pendente');
+      setPago(false);
       setObs('');
       setItens([
         { tipo: CAKE_TYPES[0], tamanho: CAKE_SIZES[3], sabor: CAKE_FLAVORS[0], qtd: 1 },
@@ -143,6 +146,8 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
       valor: valor > 0 ? valor : undefined,
       sinal: sinal > 0 ? sinal : undefined,
       status,
+      pago,
+      pagoEm: pago ? (order?.pagoEm || Date.now()) : undefined,
       obs: obs.trim() || undefined,
       itens: cleanedItems,
       criadoEm: order?.criadoEm || Date.now(),
@@ -466,6 +471,38 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
                   {st}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Situação do Pagamento */}
+          <div>
+            <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
+              Situação do Pagamento
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setPago(false)}
+                className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all flex items-center justify-center gap-1.5 min-h-[40px] ${
+                  !pago
+                    ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border-amber-300 dark:border-amber-700 font-bold shadow-2xs'
+                    : 'bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-700'
+                }`}
+              >
+                <span>⏳ A Receber ({restante > 0 ? `R$ ${restante.toFixed(2).replace('.', ',')}` : 'Pendente'})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPago(true)}
+                className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all flex items-center justify-center gap-1.5 min-h-[40px] ${
+                  pago
+                    ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 font-bold shadow-2xs'
+                    : 'bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-700'
+                }`}
+              >
+                <span>✅ Pago / Quitado</span>
+              </button>
             </div>
           </div>
 

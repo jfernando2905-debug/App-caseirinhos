@@ -14,6 +14,8 @@ import {
   ChevronDown,
   ChevronsUpDown,
   RotateCcw,
+  Clock,
+  Check,
 } from 'lucide-react';
 import { Order, OrderStatus, Recipe } from '../types';
 import {
@@ -30,7 +32,8 @@ interface OrderListProps {
   recipes: Recipe[];
   onNewOrder: () => void;
   onEditOrder: (order: Order) => void;
-  onUpdateStatus: (orderId: string, status: OrderStatus) => void;
+  onUpdateStatus: (orderId: string, status: OrderStatus, pago?: boolean) => void;
+  onUpdatePayment?: (orderId: string, pago: boolean) => void;
   onDeleteOrder: (orderId: string) => void;
   onScaleOrder?: (order: Order) => void;
   onToast: (msg: string, type?: 'success' | 'info' | 'error') => void;
@@ -42,6 +45,7 @@ export const OrderList: React.FC<OrderListProps> = ({
   onNewOrder,
   onEditOrder,
   onUpdateStatus,
+  onUpdatePayment,
   onDeleteOrder,
   onScaleOrder: _onScaleOrder,
   onToast,
@@ -49,6 +53,7 @@ export const OrderList: React.FC<OrderListProps> = ({
   const [filter, setFilter] = useState<'abertas' | 'entregues' | 'todas'>('abertas');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [previewOrder, setPreviewOrder] = useState<Order | null>(null);
+  const [deliveryModalOrder, setDeliveryModalOrder] = useState<Order | null>(null);
 
   // Set of collapsed order IDs (persisted in localStorage)
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
@@ -113,6 +118,16 @@ export const OrderList: React.FC<OrderListProps> = ({
       }
       return next;
     });
+  };
+
+  const handleRequestDelivery = (order: Order) => {
+    // If order is already fully paid or has no value/balance, deliver directly as paid
+    const restante = Math.max((order.valor || 0) - (order.sinal || 0), 0);
+    if (order.pago || !order.valor || restante <= 0) {
+      onUpdateStatus(order.id, 'entregue', true);
+    } else {
+      setDeliveryModalOrder(order);
+    }
   };
 
   const handleWhatsApp = async (order: Order) => {
@@ -343,12 +358,33 @@ export const OrderList: React.FC<OrderListProps> = ({
                     </div>
                   </div>
 
-                  {/* Header Right: Value, Status Badge & Collapse Chevron */}
-                  <div className="flex items-center gap-2 shrink-0">
+                  {/* Header Right: Value, Payment Badge, Status Badge & Collapse Chevron */}
+                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                     {order.valor !== undefined && order.valor !== null && order.valor > 0 && (
                       <span className="text-xs sm:text-sm font-bold text-stone-900 dark:text-stone-100 tabular-nums">
                         {formatCurrency(order.valor)}
                       </span>
+                    )}
+
+                    {/* Payment Badge */}
+                    {order.valor !== undefined && order.valor > 0 && (
+                      order.pago ? (
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 shrink-0"
+                          title="Pagamento quitado"
+                        >
+                          <Check className="w-3 h-3" />
+                          <span className="hidden sm:inline">Pago</span>
+                        </span>
+                      ) : (
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-850 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300 dark:border-amber-800 shrink-0"
+                          title={`A receber: ${formatCurrency(restante)}`}
+                        >
+                          <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                          <span className="hidden sm:inline">A Receber</span>
+                        </span>
+                      )
                     )}
 
                     {/* Status Badge */}
@@ -429,6 +465,50 @@ export const OrderList: React.FC<OrderListProps> = ({
                       </div>
                     )}
 
+                    {/* Payment Status & Direct "Dar Baixa" Bar */}
+                    {order.valor !== undefined && order.valor > 0 && (
+                      <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl border text-xs bg-stone-50/80 dark:bg-stone-800/50 border-stone-200/80 dark:border-stone-800">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {order.pago ? (
+                            <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-bold">
+                              <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                              <span className="truncate">Pagamento Quitado (100% recebido)</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-amber-900 dark:text-amber-300 font-bold">
+                              <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                              <span className="truncate">
+                                A Receber: <strong className="text-amber-950 dark:text-amber-200">{formatCurrency(restante)}</strong>
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          {!order.pago ? (
+                            <button
+                              type="button"
+                              onClick={() => onUpdatePayment && onUpdatePayment(order.id, true)}
+                              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-2xs transition-all active:scale-95 shrink-0"
+                              title="Registrar recebimento deste pagamento"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Dar Baixa</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => onUpdatePayment && onUpdatePayment(order.id, false)}
+                              className="text-[11px] font-medium text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 underline"
+                              title="Marcar pagamento como não recebido / a receber"
+                            >
+                              Desfazer baixa
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Observações */}
                     {order.obs && (
                       <p className="text-xs text-stone-600 dark:text-stone-300 bg-stone-50/80 dark:bg-stone-800/50 p-2.5 rounded-xl border border-stone-100 dark:border-stone-800 whitespace-pre-wrap">
@@ -438,7 +518,7 @@ export const OrderList: React.FC<OrderListProps> = ({
 
                     {/* Redesigned Button Layout */}
                     <div className="space-y-2 pt-1">
-                      {/* Row 1: Status Progression Buttons (clean, balanced & prominent) */}
+                      {/* Row 1: Status Progression Buttons */}
                       {order.status !== 'entregue' ? (
                         <div className="grid grid-cols-2 gap-2">
                           {order.status === 'pendente' && (
@@ -453,7 +533,7 @@ export const OrderList: React.FC<OrderListProps> = ({
                           )}
 
                           <button
-                            onClick={() => onUpdateStatus(order.id, 'entregue')}
+                            onClick={() => handleRequestDelivery(order)}
                             className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 rounded-xl transition-all shadow-2xs active:scale-[0.98] min-h-[40px] ${
                               order.status === 'pronto' ? 'col-span-2' : ''
                             }`}
@@ -557,6 +637,90 @@ export const OrderList: React.FC<OrderListProps> = ({
                 className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl min-h-[42px]"
               >
                 Confirmar Exclusão
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delivery Confirmation & Payment Modal */}
+      {deliveryModalOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-scale-in">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <CheckCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 font-display">
+                  Confirmar Entrega da Encomenda
+                </h3>
+                <p className="text-xs text-stone-500 dark:text-stone-400">
+                  Cliente: <strong>{deliveryModalOrder.cliente}</strong>
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-stone-50 dark:bg-stone-800/60 rounded-xl border border-stone-200/80 dark:border-stone-700/60 text-xs space-y-2">
+              <div className="flex justify-between text-stone-600 dark:text-stone-400">
+                <span>Valor total da encomenda:</span>
+                <strong className="text-stone-900 dark:text-stone-100 font-bold tabular-nums">
+                  {formatCurrency(deliveryModalOrder.valor || 0)}
+                </strong>
+              </div>
+              {deliveryModalOrder.sinal && deliveryModalOrder.sinal > 0 ? (
+                <div className="flex justify-between text-stone-600 dark:text-stone-400">
+                  <span>Sinal já adiantado:</span>
+                  <span className="text-emerald-700 dark:text-emerald-400 font-semibold tabular-nums">
+                    {formatCurrency(deliveryModalOrder.sinal)}
+                  </span>
+                </div>
+              ) : null}
+              <div className="flex justify-between text-sm font-bold text-amber-950 dark:text-amber-300 pt-1.5 border-t border-stone-200 dark:border-stone-700">
+                <span>Restante a acertar:</span>
+                <span className="tabular-nums">
+                  {formatCurrency(
+                    Math.max((deliveryModalOrder.valor || 0) - (deliveryModalOrder.sinal || 0), 0)
+                  )}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs sm:text-sm text-stone-700 dark:text-stone-300 font-medium text-center">
+              O pagamento desta encomenda já foi recebido?
+            </p>
+
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  onUpdateStatus(deliveryModalOrder.id, 'entregue', true);
+                  setDeliveryModalOrder(null);
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl shadow-xs transition-colors min-h-[44px]"
+              >
+                <Check className="w-4 h-4" />
+                <span>Sim, Recebido (Marcar como Pago)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onUpdateStatus(deliveryModalOrder.id, 'entregue', false);
+                  setDeliveryModalOrder(null);
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-xs sm:text-sm font-semibold text-amber-950 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-800 rounded-xl transition-colors min-h-[44px]"
+              >
+                <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span>Não, Deixar Pendente (A Receber)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDeliveryModalOrder(null)}
+                className="w-full py-2 text-xs font-semibold text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 transition-colors"
+              >
+                Cancelar
               </button>
             </div>
           </div>

@@ -83,6 +83,8 @@ export interface Order {
   valor?: number;
   sinal?: number;
   status: OrderStatus;
+  pago?: boolean; // Whether the order is paid
+  pagoEm?: number; // Timestamp when payment was completed
   obs?: string;
   itens: OrderItem[];
   criadoEm?: number;

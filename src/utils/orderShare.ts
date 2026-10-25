@@ -83,6 +83,12 @@ export const formatOrderWhatsApp = (order: Order): string => {
     } else {
       text += `Valor: ${valorStr}\n`;
     }
+
+    if (order.pago) {
+      text += `Pagamento: QUITADO / PAGO ✅\n`;
+    } else {
+      text += `Pagamento: A RECEBER (Restante: ${restanteStr}) ⏳\n`;
+    }
   }
 
   text += `Status: ${order.status.toUpperCase()}\n`;
@@ -90,6 +96,20 @@ export const formatOrderWhatsApp = (order: Order): string => {
     text += `Obs: ${order.obs.trim()}\n`;
   }
 
+  return text;
+};
+
+export const formatPaymentReminderWhatsApp = (order: Order): string => {
+  const restante = order.valor ? Math.max(order.valor - (order.sinal || 0), 0) : 0;
+  const restanteStr = formatCurrency(restante);
+  const dataFormatada = formatDatePtBR(order.entrega);
+
+  let text = `Olá, ${order.cliente}! Tudo bem? 😊\n\n`;
+  text += `Passando para enviar o lembrete da sua encomenda da *Caseirinhos Fer&Dre*:\n`;
+  text += `📅 Data de entrega: ${dataFormatada}${order.hora ? ` às ${order.hora}` : ''}\n`;
+  text += `🎂 Pedido: ${order.itens.map((it) => formatItemText(it)).join(', ')}\n\n`;
+  text += `💰 *Valor restante a acertar:* ${restanteStr}\n\n`;
+  text += `Qualquer dúvida estamos à disposição! Muito obrigado(a)! 🍰❤️`;
   return text;
 };
 

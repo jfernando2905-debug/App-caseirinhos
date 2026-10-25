@@ -203,12 +203,16 @@ export default function App() {
     );
   };
 
-  const handleUpdateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
+  const handleUpdateOrderStatus = (orderId: string, newStatus: OrderStatus, pago?: boolean) => {
     let targetOrder: Order | undefined;
     setData((prev) => {
       const updated = prev.orders.map((o) => {
         if (o.id === orderId) {
-          targetOrder = { ...o, status: newStatus };
+          targetOrder = {
+            ...o,
+            status: newStatus,
+            ...(pago !== undefined ? { pago, pagoEm: pago ? (o.pagoEm || Date.now()) : undefined } : {}),
+          };
           return targetOrder;
         }
         return o;
@@ -224,7 +228,41 @@ export default function App() {
 
     const statusLabel =
       newStatus === 'pronto' ? 'marcada como pronta' : newStatus === 'entregue' ? 'marcada como entregue' : 'pendente';
-    showToast(`Encomenda ${statusLabel}!`);
+    const paymentLabel = pago === true ? ' e pagamento baixado (pago)' : pago === false ? ' (pendente de pagamento)' : '';
+    showToast(`Encomenda ${statusLabel}${paymentLabel}!`);
+  };
+
+  const handleUpdateOrderPayment = (orderId: string, pago: boolean) => {
+    let targetOrder: Order | undefined;
+    setData((prev) => {
+      const updated = prev.orders.map((o) => {
+        if (o.id === orderId) {
+          targetOrder = {
+            ...o,
+            pago,
+            pagoEm: pago ? Date.now() : undefined,
+          };
+          return targetOrder;
+        }
+        return o;
+      });
+      return { ...prev, orders: updated };
+    });
+
+    if (user && targetOrder) {
+      saveCloudOrder(user.uid, targetOrder).catch((err) =>
+        console.error('Error updating order payment in cloud:', err)
+      );
+    }
+
+    if (pago) {
+      showToast(
+        `Pagamento de ${targetOrder?.cliente || 'cliente'} baixado com sucesso!`,
+        'success'
+      );
+    } else {
+      showToast(`Pagamento de ${targetOrder?.cliente || 'cliente'} marcado como a receber.`, 'info');
+    }
   };
 
   const handleDeleteOrder = (orderId: string) => {
@@ -521,6 +559,7 @@ export default function App() {
             onNewOrder={handleNewOrder}
             onEditOrder={handleEditOrder}
             onUpdateStatus={handleUpdateOrderStatus}
+            onUpdatePayment={handleUpdateOrderPayment}
             onDeleteOrder={handleDeleteOrder}
             onScaleOrder={handleScaleOrder}
             onToast={showToast}
@@ -587,6 +626,8 @@ export default function App() {
             cfg={data.cfg}
             onNewOrder={handleNewOrder}
             onNavigateToOrders={() => handleNavigate('orders')}
+            onUpdatePayment={handleUpdateOrderPayment}
+            onToast={showToast}
           />
         )}
 
