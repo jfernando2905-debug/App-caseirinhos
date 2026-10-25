@@ -220,6 +220,8 @@ export function subscribeToUserData(
           hora: data.hora || '',
           valor: typeof data.valor === 'number' ? data.valor : 0,
           sinal: typeof data.sinal === 'number' ? data.sinal : 0,
+          pago: typeof data.pago === 'boolean' ? data.pago : undefined,
+          pagoEm: typeof data.pagoEm === 'number' ? data.pagoEm : undefined,
           status: data.status || 'pendente',
           obs: data.obs || '',
           itens: Array.isArray(data.itens) ? data.itens : [],

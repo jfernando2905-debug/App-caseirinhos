@@ -377,13 +377,19 @@ export const OrderList: React.FC<OrderListProps> = ({
                           <span className="hidden sm:inline">Pago</span>
                         </span>
                       ) : (
-                        <span
-                          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-850 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300 dark:border-amber-800 shrink-0"
-                          title={`A receber: ${formatCurrency(restante)}`}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onUpdatePayment) onUpdatePayment(order.id, true);
+                          }}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 hover:bg-emerald-100 text-amber-800 hover:text-emerald-800 dark:bg-amber-950/80 dark:hover:bg-emerald-950/80 dark:text-amber-300 dark:hover:text-emerald-300 border border-amber-300 hover:border-emerald-400 dark:border-amber-800 dark:hover:border-emerald-700 transition-colors shrink-0 cursor-pointer"
+                          title={`A receber: ${formatCurrency(restante)} - Clique para dar baixa`}
                         >
                           <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                          <span className="hidden sm:inline">A Receber</span>
-                        </span>
+                          <span>A Receber</span>
+                          <span className="text-[9px] font-bold underline ml-0.5">Baixar</span>
+                        </button>
                       )
                     )}
 
@@ -488,8 +494,11 @@ export const OrderList: React.FC<OrderListProps> = ({
                           {!order.pago ? (
                             <button
                               type="button"
-                              onClick={() => onUpdatePayment && onUpdatePayment(order.id, true)}
-                              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-2xs transition-all active:scale-95 shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onUpdatePayment) onUpdatePayment(order.id, true);
+                              }}
+                              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-2xs transition-all active:scale-95 shrink-0 cursor-pointer"
                               title="Registrar recebimento deste pagamento"
                             >
                               <Check className="w-3.5 h-3.5" />
@@ -498,8 +507,11 @@ export const OrderList: React.FC<OrderListProps> = ({
                           ) : (
                             <button
                               type="button"
-                              onClick={() => onUpdatePayment && onUpdatePayment(order.id, false)}
-                              className="text-[11px] font-medium text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 underline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onUpdatePayment) onUpdatePayment(order.id, false);
+                              }}
+                              className="text-[11px] font-medium text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 underline cursor-pointer"
                               title="Marcar pagamento como não recebido / a receber"
                             >
                               Desfazer baixa

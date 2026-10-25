@@ -101,40 +101,13 @@ export default function App() {
         // Subscribe to real-time changes across devices
         unsub = subscribeToUserData(user.uid, {
           onIngredients: (cloudIngs) => {
-            setData((prev) => {
-              if (cloudIngs.length === 0 && prev.ings.length > 0) {
-                // Self-healing: if cloud has no ingredients yet, push local ingredients to cloud
-                for (const ing of prev.ings) {
-                  saveCloudIngredient(user.uid, ing).catch(() => {});
-                }
-                return prev;
-              }
-              return { ...prev, ings: cloudIngs };
-            });
+            setData((prev) => ({ ...prev, ings: cloudIngs }));
           },
           onRecipes: (cloudRecs) => {
-            setData((prev) => {
-              if (cloudRecs.length === 0 && prev.recs.length > 0) {
-                // Self-healing: if cloud has no recipes yet, push local recipes to cloud
-                for (const rec of prev.recs) {
-                  saveCloudRecipe(user.uid, rec).catch(() => {});
-                }
-                return prev;
-              }
-              return { ...prev, recs: cloudRecs };
-            });
+            setData((prev) => ({ ...prev, recs: cloudRecs }));
           },
           onOrders: (cloudOrders) => {
-            setData((prev) => {
-              if (cloudOrders.length === 0 && prev.orders.length > 0) {
-                // Self-healing: if cloud has no orders yet, push local orders to cloud
-                for (const ord of prev.orders) {
-                  saveCloudOrder(user.uid, ord).catch(() => {});
-                }
-                return prev;
-              }
-              return { ...prev, orders: cloudOrders };
-            });
+            setData((prev) => ({ ...prev, orders: cloudOrders }));
           },
           onSettings: (cloudCfg) => {
             if (cloudCfg) {
@@ -204,64 +177,103 @@ export default function App() {
   };
 
   const handleUpdateOrderStatus = (orderId: string, newStatus: OrderStatus, pago?: boolean) => {
-    let targetOrder: Order | undefined;
-    setData((prev) => {
-      const updated = prev.orders.map((o) => {
-        if (o.id === orderId) {
-          targetOrder = {
-            ...o,
-            status: newStatus,
-            ...(pago !== undefined ? { pago, pagoEm: pago ? (o.pagoEm || Date.now()) : undefined } : {}),
-          };
-          return targetOrder;
-        }
-        return o;
-      });
-      return { ...prev, orders: updated };
-    });
+    let targetOrder: Order | null = null;
 
-    if (user && targetOrder) {
-      saveCloudOrder(user.uid, targetOrder).catch((err) =>
-        console.error('Error updating order status in cloud:', err)
-      );
+    const found = data.orders.find((o) => o.id === orderId);
+    if (found) {
+      targetOrder = {
+        ...found,
+        status: newStatus,
+        ...(pago !== undefined
+          ? {
+              pago,
+              pagoEm: pago ? (found.pagoEm || Date.now()) : undefined,
+            }
+          : {}),
+      };
     }
 
-    const statusLabel =
-      newStatus === 'pronto' ? 'marcada como pronta' : newStatus === 'entregue' ? 'marcada como entregue' : 'pendente';
-    const paymentLabel = pago === true ? ' e pagamento baixado (pago)' : pago === false ? ' (pendente de pagamento)' : '';
-    showToast(`Encomenda ${statusLabel}${paymentLabel}!`);
+    setData((prev) => {
+      const orderInState = prev.orders.find((o) => o.id === orderId);
+      if (!orderInState) return prev;
+      targetOrder = {
+        ...orderInState,
+        status: newStatus,
+        ...(pago !== undefined
+          ? {
+              pago,
+              pagoEm: pago ? (orderInState.pagoEm || Date.now()) : undefined,
+            }
+          : {}),
+      };
+      return {
+        ...prev,
+        orders: prev.orders.map((o) => (o.id === orderId ? targetOrder! : o)),
+      };
+    });
+
+    if (targetOrder) {
+      const resolvedOrder: Order = targetOrder;
+      if (user) {
+        saveCloudOrder(user.uid, resolvedOrder).catch((err) =>
+          console.error('Error updating order status in cloud:', err)
+        );
+      }
+
+      const statusLabel =
+        newStatus === 'pronto'
+          ? 'marcada como pronta'
+          : newStatus === 'entregue'
+          ? 'marcada como entregue'
+          : 'pendente';
+      const paymentLabel =
+        pago === true ? ' e pagamento baixado (pago)' : pago === false ? ' (pendente de pagamento)' : '';
+      showToast(`Encomenda de ${resolvedOrder.cliente} ${statusLabel}${paymentLabel}!`);
+    }
   };
 
   const handleUpdateOrderPayment = (orderId: string, pago: boolean) => {
-    let targetOrder: Order | undefined;
-    setData((prev) => {
-      const updated = prev.orders.map((o) => {
-        if (o.id === orderId) {
-          targetOrder = {
-            ...o,
-            pago,
-            pagoEm: pago ? Date.now() : undefined,
-          };
-          return targetOrder;
-        }
-        return o;
-      });
-      return { ...prev, orders: updated };
-    });
+    let targetOrder: Order | null = null;
 
-    if (user && targetOrder) {
-      saveCloudOrder(user.uid, targetOrder).catch((err) =>
-        console.error('Error updating order payment in cloud:', err)
-      );
+    const found = data.orders.find((o) => o.id === orderId);
+    if (found) {
+      targetOrder = {
+        ...found,
+        pago,
+        pagoEm: pago ? Date.now() : undefined,
+      };
     }
 
-    if (pago) {
-      showToast(
-        `Pagamento de ${targetOrder?.cliente || 'cliente'} baixado com sucesso!`,
-        'success'
-      );
-    } else {
-      showToast(`Pagamento de ${targetOrder?.cliente || 'cliente'} marcado como a receber.`, 'info');
+    setData((prev) => {
+      const orderInState = prev.orders.find((o) => o.id === orderId);
+      if (!orderInState) return prev;
+      targetOrder = {
+        ...orderInState,
+        pago,
+        pagoEm: pago ? Date.now() : undefined,
+      };
+      return {
+        ...prev,
+        orders: prev.orders.map((o) => (o.id === orderId ? targetOrder! : o)),
+      };
+    });
+
+    if (targetOrder) {
+      const resolvedOrder: Order = targetOrder;
+      if (user) {
+        saveCloudOrder(user.uid, resolvedOrder).catch((err) =>
+          console.error('Error updating order payment in cloud:', err)
+        );
+      }
+
+      if (pago) {
+        showToast(
+          `Pagamento de ${resolvedOrder.cliente} baixado com sucesso!`,
+          'success'
+        );
+      } else {
+        showToast(`Pagamento de ${resolvedOrder.cliente} marcado como a receber.`, 'info');
+      }
     }
   };
 

@@ -38,10 +38,11 @@ import {
   Phone,
   AlertCircle,
   AlertTriangle,
+  RotateCcw,
 } from 'lucide-react';
 import { Order, Recipe, Ingredient, AppSettings } from '../types';
 import { getMonthlyProfitHistory, calculateOrderCostAndProfit, MonthlyProfitData } from '../utils/orderMetrics';
-import { formatCurrency, formatNumber } from '../utils/calculations';
+import { formatCurrency, formatNumber, calculateSizeMetrics } from '../utils/calculations';
 import { formatPaymentReminderWhatsApp, formatDatePtBR, formatItemText } from '../utils/orderShare';
 
 interface FinancialDashboardProps {
@@ -73,7 +74,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
 }) => {
   const [chartType, setChartType] = useState<'area' | 'bar'>('area');
   const [showMonthlyTable, setShowMonthlyTable] = useState<boolean>(true);
-  const [receberFilter, setReceberFilter] = useState<'todas' | 'entregues' | 'abertas'>('todas');
+  const [receberFilter, setReceberFilter] = useState<'todas' | 'entregues' | 'abertas' | 'pagas'>('todas');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // 1. Calculate overall financial metrics
@@ -180,15 +181,22 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
     });
   }, [orders]);
 
-  const filteredUnpaidOrders = useMemo(() => {
+  const paidOrders = useMemo(() => {
+    return orders.filter((o) => o.pago && (o.valor || 0) > 0);
+  }, [orders]);
+
+  const filteredDisplayOrders = useMemo(() => {
     if (receberFilter === 'entregues') {
       return unpaidOrders.filter((o) => o.status === 'entregue');
     }
     if (receberFilter === 'abertas') {
       return unpaidOrders.filter((o) => o.status !== 'entregue');
     }
+    if (receberFilter === 'pagas') {
+      return paidOrders;
+    }
     return unpaidOrders;
-  }, [unpaidOrders, receberFilter]);
+  }, [unpaidOrders, paidOrders, receberFilter]);
 
   const handleBaixarPagamento = (order: Order) => {
     if (onUpdatePayment) {
@@ -244,6 +252,137 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
       },
     ].filter((item) => item.value > 0);
   }, [statusCounts, statusValues]);
+
+  // 4. Expense distribution data for Recharts PieChart (Ingredientes, Embalagens, Equipamentos, Mão de Obra)
+  const costDistributionData = useMemo(() => {
+    let ingrTotal = 0;
+    let packTotal = 0;
+    let equipTotal = 0;
+    let laborTotal = 0;
+
+    for (const order of orders) {
+      const items = order.itens || [];
+      const orderRevenue = order.valor || 0;
+
+      for (const item of items) {
+        const qty = Math.max(1, item.qtd || 1);
+        let rec = item.receitaId ? recipes.find((r) => r.id === item.receitaId) : undefined;
+        if (!rec) {
+          rec = recipes.find(
+            (r) =>
+              r.name.toLowerCase().trim() === (item.sabor || '').toLowerCase().trim() ||
+              r.id === item.sabor
+          );
+        }
+
+        if (rec) {
+          const matchedSize =
+            (rec.sizes || []).find(
+              (s) => s.nome.toLowerCase() === (item.tamanho || '').toLowerCase()
+            ) ||
+            (rec.sizes || [])[0] || {
+              id: 'default',
+              nome: 'Padrão',
+              k: 1,
+              pack: rec.pack || 0,
+              sell: rec.sell || 0,
+            };
+
+          const metrics = calculateSizeMetrics(rec, matchedSize, cfg, ingredients);
+          ingrTotal += metrics.ingrCost * qty;
+          packTotal += metrics.packCost * qty;
+          equipTotal += (metrics.gasCost + metrics.elecCost) * qty;
+
+          // Mão de obra: custo operacional direto da receita ou cálculo baseado no tempo de produção
+          const laborPerCake = metrics.fuelCost > 0
+            ? metrics.fuelCost
+            : ((rec.time || 30) / 60) * 12 * (matchedSize.k || 1);
+          laborTotal += laborPerCake * qty;
+        } else {
+          // Unlinked item: estimate cost distribution from estimated total item cost
+          const itemVal = item.valorUnitario && item.valorUnitario > 0
+            ? item.valorUnitario * qty
+            : items.length > 0
+            ? (orderRevenue / items.length)
+            : 0;
+          const estimatedCost = itemVal * (1 - (cfg.margin || 60) / 100);
+
+          ingrTotal += estimatedCost * 0.65;
+          packTotal += estimatedCost * 0.15;
+          equipTotal += estimatedCost * 0.10;
+          laborTotal += estimatedCost * 0.10;
+        }
+      }
+    }
+
+    const total = ingrTotal + packTotal + equipTotal + laborTotal;
+    const safeTotal = total > 0 ? total : 1;
+
+    return {
+      totalGastos: total,
+      items: [
+        {
+          name: 'Ingredientes',
+          key: 'ingredientes',
+          value: Math.round(ingrTotal * 100) / 100,
+          percent: Math.round((ingrTotal / safeTotal) * 1000) / 10,
+          color: '#d97706', // amber-600
+          dotColor: 'bg-amber-500',
+          badgeBg: 'bg-amber-50/70 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+        },
+        {
+          name: 'Embalagens',
+          key: 'embalagens',
+          value: Math.round(packTotal * 100) / 100,
+          percent: Math.round((packTotal / safeTotal) * 1000) / 10,
+          color: '#059669', // emerald-600
+          dotColor: 'bg-emerald-500',
+          badgeBg: 'bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+        },
+        {
+          name: 'Equipamentos',
+          key: 'equipamentos',
+          value: Math.round(equipTotal * 100) / 100,
+          percent: Math.round((equipTotal / safeTotal) * 1000) / 10,
+          color: '#0284c7', // sky-600
+          dotColor: 'bg-sky-500',
+          badgeBg: 'bg-sky-50/70 dark:bg-sky-950/40 text-sky-900 dark:text-sky-300 border-sky-200 dark:border-sky-800',
+        },
+        {
+          name: 'Mão de Obra',
+          key: 'mao_de_obra',
+          value: Math.round(laborTotal * 100) / 100,
+          percent: Math.round((laborTotal / safeTotal) * 1000) / 10,
+          color: '#8b5cf6', // violet-500
+          dotColor: 'bg-violet-500',
+          badgeBg: 'bg-violet-50/70 dark:bg-violet-950/40 text-violet-900 dark:text-violet-300 border-violet-200 dark:border-violet-800',
+        },
+      ].filter((item) => item.value > 0),
+    };
+  }, [orders, recipes, ingredients, cfg]);
+
+  const CustomCostTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-stone-900 text-stone-100 p-2.5 rounded-xl shadow-xl text-xs space-y-1 border border-stone-800">
+          <p className="font-bold flex items-center gap-1.5" style={{ color: data.color }}>
+            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: data.color }} />
+            <span>{data.name}</span>
+          </p>
+          <div className="flex justify-between gap-4 text-stone-300">
+            <span>Total Gasto:</span>
+            <strong className="text-white tabular-nums">{formatCurrency(data.value)}</strong>
+          </div>
+          <div className="flex justify-between gap-4 text-stone-300">
+            <span>Participação:</span>
+            <strong className="text-amber-400 tabular-nums">{data.percent}%</strong>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
 
   // Custom tooltip for financial curves
   const CustomFinanceTooltip = ({ active, payload, label }: any) => {
@@ -468,156 +607,242 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
         </div>
       </div>
 
-      {/* Main Charts Section (2-Column Grid on larger screens) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column (Span 2): Financial Evolution Chart */}
-        <div className="lg:col-span-2 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-stone-100 dark:border-stone-800">
-            <div>
-              <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 font-display flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                <span>Evolução Financeira Mensal</span>
-              </h3>
-              <p className="text-xs text-stone-500 dark:text-stone-400">
-                Faturamento e lucro líquido das encomendas entregues ao longo dos meses
-              </p>
-            </div>
-
-            {/* Chart Mode Toggle */}
-            <div className="flex items-center gap-1 p-1 bg-stone-100 dark:bg-stone-800 rounded-xl self-start sm:self-auto text-xs font-semibold">
-              <button
-                onClick={() => setChartType('area')}
-                className={`px-3 py-1 rounded-lg transition-colors min-h-[30px] ${
-                  chartType === 'area'
-                    ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-2xs'
-                    : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
-                }`}
-              >
-                Curva de Lucro
-              </button>
-              <button
-                onClick={() => setChartType('bar')}
-                className={`px-3 py-1 rounded-lg transition-colors min-h-[30px] ${
-                  chartType === 'bar'
-                    ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-2xs'
-                    : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
-                }`}
-              >
-                Barras (Faturamento x Lucro)
-              </button>
-            </div>
+      {/* Financial Evolution Chart (Full Width) */}
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-stone-100 dark:border-stone-800">
+          <div>
+            <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 font-display flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <span>Evolução Financeira Mensal</span>
+            </h3>
+            <p className="text-xs text-stone-500 dark:text-stone-400">
+              Faturamento e lucro líquido das encomendas entregues ao longo dos meses
+            </p>
           </div>
 
-          {/* Recharts Container */}
-          {monthlyData.length === 0 ? (
-            <div className="py-14 text-center border border-dashed border-stone-200 dark:border-stone-800 rounded-xl">
-              <Calendar className="w-10 h-10 text-stone-300 dark:text-stone-600 mx-auto mb-2" />
-              <p className="text-sm font-bold text-stone-700 dark:text-stone-300">
-                Nenhuma encomenda entregue registrada ainda
-              </p>
-              <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 max-w-sm mx-auto">
-                À medida que você marcar suas encomendas como <strong>Entregue</strong>, a curva mensal de faturamento e lucro aparecerá aqui automaticamente.
-              </p>
-            </div>
-          ) : (
-            <div className="w-full h-72 sm:h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                {chartType === 'area' ? (
-                  <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="dashFaturamentoGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#d97706" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#d97706" stopOpacity={0.0} />
-                      </linearGradient>
-                      <linearGradient id="dashLucroGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#059669" stopOpacity={0.5} />
-                        <stop offset="95%" stopColor="#059669" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#88888820" vertical={false} />
-                    <XAxis
-                      dataKey="monthLabel"
-                      stroke="#88888880"
-                      fontSize={11}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      stroke="#88888880"
-                      fontSize={11}
-                      tickLine={false}
-                      axisLine={false}
-                      tickFormatter={(val) => `R$${val}`}
-                    />
-                    <Tooltip content={<CustomFinanceTooltip />} />
-                    <Legend
-                      verticalAlign="top"
-                      height={36}
-                      formatter={(val) => (
-                        <span className="text-xs font-medium text-stone-700 dark:text-stone-300">
-                          {val === 'faturamento' ? 'Faturamento Total' : 'Lucro Líquido'}
-                        </span>
-                      )}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="faturamento"
-                      stroke="#d97706"
-                      strokeWidth={2.5}
-                      fillOpacity={1}
-                      fill="url(#dashFaturamentoGrad)"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="lucroMes"
-                      stroke="#059669"
-                      strokeWidth={2.5}
-                      fillOpacity={1}
-                      fill="url(#dashLucroGrad)"
-                    />
-                  </AreaChart>
-                ) : (
-                  <BarChart data={monthlyData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#88888820" vertical={false} />
-                    <XAxis
-                      dataKey="monthLabel"
-                      stroke="#88888880"
-                      fontSize={11}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      stroke="#88888880"
-                      fontSize={11}
-                      tickLine={false}
-                      axisLine={false}
-                      tickFormatter={(val) => `R$${val}`}
-                    />
-                    <Tooltip content={<CustomFinanceTooltip />} />
-                    <Legend
-                      verticalAlign="top"
-                      height={36}
-                      formatter={(val) => (
-                        <span className="text-xs font-medium text-stone-700 dark:text-stone-300">
-                          {val === 'faturamento'
-                            ? 'Faturamento'
-                            : val === 'custo'
-                            ? 'Custo de Produção'
-                            : 'Lucro Líquido'}
-                        </span>
-                      )}
-                    />
-                    <Bar dataKey="faturamento" fill="#d97706" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="custo" fill="#e11d48" radius={[6, 6, 0, 0]} opacity={0.8} />
-                    <Bar dataKey="lucroMes" fill="#059669" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                )}
-              </ResponsiveContainer>
-            </div>
-          )}
+          {/* Chart Mode Toggle */}
+          <div className="flex items-center gap-1 p-1 bg-stone-100 dark:bg-stone-800 rounded-xl self-start sm:self-auto text-xs font-semibold">
+            <button
+              onClick={() => setChartType('area')}
+              className={`px-3 py-1 rounded-lg transition-colors min-h-[30px] ${
+                chartType === 'area'
+                  ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-2xs'
+                  : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+              }`}
+            >
+              Curva de Lucro
+            </button>
+            <button
+              onClick={() => setChartType('bar')}
+              className={`px-3 py-1 rounded-lg transition-colors min-h-[30px] ${
+                chartType === 'bar'
+                  ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-2xs'
+                  : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+              }`}
+            >
+              Barras (Faturamento x Lucro)
+            </button>
+          </div>
         </div>
 
-        {/* Right Column: Orders by Status Chart */}
+        {/* Recharts Container */}
+        {monthlyData.length === 0 ? (
+          <div className="py-14 text-center border border-dashed border-stone-200 dark:border-stone-800 rounded-xl">
+            <Calendar className="w-10 h-10 text-stone-300 dark:text-stone-600 mx-auto mb-2" />
+            <p className="text-sm font-bold text-stone-700 dark:text-stone-300">
+              Nenhuma encomenda entregue registrada ainda
+            </p>
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 max-w-sm mx-auto">
+              À medida que você marcar suas encomendas como <strong>Entregue</strong>, a curva mensal de faturamento e lucro aparecerá aqui automaticamente.
+            </p>
+          </div>
+        ) : (
+          <div className="w-full h-72 sm:h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              {chartType === 'area' ? (
+                <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="dashFaturamentoGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#d97706" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#d97706" stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="dashLucroGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#059669" stopOpacity={0.5} />
+                      <stop offset="95%" stopColor="#059669" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#88888820" vertical={false} />
+                  <XAxis
+                    dataKey="monthLabel"
+                    stroke="#88888880"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="#88888880"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(val) => `R$${val}`}
+                  />
+                  <Tooltip content={<CustomFinanceTooltip />} />
+                  <Legend
+                    verticalAlign="top"
+                    height={36}
+                    formatter={(val) => (
+                      <span className="text-xs font-medium text-stone-700 dark:text-stone-300">
+                        {val === 'faturamento' ? 'Faturamento Total' : 'Lucro Líquido'}
+                      </span>
+                    )}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="faturamento"
+                    stroke="#d97706"
+                    strokeWidth={2.5}
+                    fillOpacity={1}
+                    fill="url(#dashFaturamentoGrad)"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="lucroMes"
+                    stroke="#059669"
+                    strokeWidth={2.5}
+                    fillOpacity={1}
+                    fill="url(#dashLucroGrad)"
+                  />
+                </AreaChart>
+              ) : (
+                <BarChart data={monthlyData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#88888820" vertical={false} />
+                  <XAxis
+                    dataKey="monthLabel"
+                    stroke="#88888880"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="#88888880"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(val) => `R$${val}`}
+                  />
+                  <Tooltip content={<CustomFinanceTooltip />} />
+                  <Legend
+                    verticalAlign="top"
+                    height={36}
+                    formatter={(val) => (
+                      <span className="text-xs font-medium text-stone-700 dark:text-stone-300">
+                        {val === 'faturamento'
+                          ? 'Faturamento'
+                          : val === 'custo'
+                          ? 'Custo de Produção'
+                          : 'Lucro Líquido'}
+                      </span>
+                    )}
+                  />
+                  <Bar dataKey="faturamento" fill="#d97706" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="custo" fill="#e11d48" radius={[6, 6, 0, 0]} opacity={0.8} />
+                  <Bar dataKey="lucroMes" fill="#059669" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* 2-Column Grid: Distribuição de Gastos (PieChart) & Pedidos por Status (PieChart) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Column 1: Expense Distribution Pie Chart (Ingredientes, Embalagens, Equipamentos, Mão de Obra) */}
+        <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4 flex flex-col justify-between">
+          <div>
+            <div className="pb-2 border-b border-stone-100 dark:border-stone-800">
+              <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 font-display flex items-center gap-2">
+                <PieChartIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span>Distribuição de Gastos</span>
+              </h3>
+              <p className="text-xs text-stone-500 dark:text-stone-400">
+                Divisão proporcional de insumos, embalagens, equipamentos e mão de obra
+              </p>
+            </div>
+
+            {costDistributionData.items.length === 0 ? (
+              <div className="py-14 text-center">
+                <Receipt className="w-10 h-10 text-stone-300 dark:text-stone-600 mx-auto mb-2" />
+                <p className="text-xs text-stone-500 dark:text-stone-400">
+                  Nenhum gasto registrado ainda nas encomendas
+                </p>
+              </div>
+            ) : (
+              <div className="w-full h-56 relative flex items-center justify-center">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Tooltip content={<CustomCostTooltip />} />
+                    <Pie
+                      data={costDistributionData.items}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={78}
+                      paddingAngle={4}
+                    >
+                      {costDistributionData.items.map((entry, index) => (
+                        <Cell key={`cost-cell-${index}`} fill={entry.color} stroke="transparent" />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Center Label inside donut */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="text-lg font-black text-stone-900 dark:text-stone-100 font-display">
+                    {formatCurrency(costDistributionData.totalGastos)}
+                  </span>
+                  <span className="text-[10px] text-stone-500 font-medium uppercase tracking-wider">
+                    Total Gastos
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Expense Breakdown List */}
+          <div className="space-y-2 pt-2 border-t border-stone-100 dark:border-stone-800">
+            {costDistributionData.items.length === 0 ? (
+              <p className="text-xs text-stone-400 text-center py-2">
+                Cadastre receitas e encomendas para detalhar os gastos operacionais.
+              </p>
+            ) : (
+              costDistributionData.items.map((item) => (
+                <div
+                  key={item.key}
+                  className={`flex items-center justify-between p-2.5 rounded-xl border text-xs ${item.badgeBg}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${item.dotColor} shrink-0`} />
+                    <span className="font-semibold text-stone-800 dark:text-stone-200">
+                      {item.name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-right">
+                    <span className="font-bold tabular-nums">
+                      {formatCurrency(item.value)}
+                    </span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-white/80 dark:bg-stone-800/90 shadow-2xs tabular-nums">
+                      {item.percent}%
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Column 2: Orders by Status Chart */}
         <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4 flex flex-col justify-between">
           <div>
             <div className="pb-2 border-b border-stone-100 dark:border-stone-800">
@@ -729,10 +954,11 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
           </div>
 
           {/* Filter Pills */}
-          <div className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 p-1 rounded-xl text-xs font-semibold self-start sm:self-auto">
+          <div className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 p-1 rounded-xl text-xs font-semibold self-start sm:self-auto flex-wrap">
             <button
+              type="button"
               onClick={() => setReceberFilter('todas')}
-              className={`px-3 py-1.5 rounded-lg transition-colors min-h-[32px] ${
+              className={`px-3 py-1.5 rounded-lg transition-colors min-h-[32px] cursor-pointer ${
                 receberFilter === 'todas'
                   ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-2xs font-bold'
                   : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
@@ -741,8 +967,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
               Todas a Receber ({unpaidOrders.length})
             </button>
             <button
+              type="button"
               onClick={() => setReceberFilter('entregues')}
-              className={`px-3 py-1.5 rounded-lg transition-colors min-h-[32px] flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg transition-colors min-h-[32px] flex items-center gap-1.5 cursor-pointer ${
                 receberFilter === 'entregues'
                   ? 'bg-rose-600 text-white shadow-2xs font-bold'
                   : 'text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40'
@@ -756,8 +983,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
               )}
             </button>
             <button
+              type="button"
               onClick={() => setReceberFilter('abertas')}
-              className={`px-3 py-1.5 rounded-lg transition-colors min-h-[32px] ${
+              className={`px-3 py-1.5 rounded-lg transition-colors min-h-[32px] cursor-pointer ${
                 receberFilter === 'abertas'
                   ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-2xs font-bold'
                   : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
@@ -765,37 +993,60 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
             >
               Encomendas Abertas ({unpaidOrders.length - unpaidEntreguesCount})
             </button>
+            <button
+              type="button"
+              onClick={() => setReceberFilter('pagas')}
+              className={`px-3 py-1.5 rounded-lg transition-colors min-h-[32px] flex items-center gap-1.5 cursor-pointer ${
+                receberFilter === 'pagas'
+                  ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+                  : 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+              }`}
+            >
+              <span>Quitadas</span>
+              {paidOrders.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold">
+                  {paidOrders.length}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
         {/* Content */}
-        {filteredUnpaidOrders.length === 0 ? (
+        {filteredDisplayOrders.length === 0 ? (
           <div className="py-8 text-center bg-stone-50 dark:bg-stone-800/40 rounded-xl border border-dashed border-stone-200 dark:border-stone-800">
             <CheckCircle className="w-9 h-9 text-emerald-500 mx-auto mb-2" />
             <h4 className="text-sm font-bold text-stone-800 dark:text-stone-200">
-              {unpaidOrders.length === 0
+              {receberFilter === 'pagas'
+                ? 'Nenhuma encomenda quitada encontrada.'
+                : unpaidOrders.length === 0
                 ? 'Todos os pagamentos estão quitados!'
                 : 'Nenhum pagamento pendente neste filtro.'}
             </h4>
             <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 max-w-sm mx-auto">
-              {unpaidOrders.length === 0
+              {receberFilter === 'pagas'
+                ? 'À medida que você der baixa nos recebimentos, eles aparecerão aqui.'
+                : unpaidOrders.length === 0
                 ? 'Parabéns! Todas as encomendas registradas foram pagas pelos clientes.'
                 : 'Alterne o filtro acima para ver as demais encomendas a receber.'}
             </p>
           </div>
         ) : (
           <div className="space-y-2.5">
-            {filteredUnpaidOrders.map((order) => {
+            {filteredDisplayOrders.map((order) => {
               const val = order.valor || 0;
               const sin = order.sinal || 0;
               const restante = Math.max(0, val - sin);
               const isEntregue = order.status === 'entregue';
+              const isPago = !!order.pago;
 
               return (
                 <div
                   key={order.id}
                   className={`p-3.5 sm:p-4 rounded-xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 ${
-                    isEntregue
+                    isPago
+                      ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/60'
+                      : isEntregue
                       ? 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/60'
                       : 'bg-white dark:bg-stone-800/60 border-stone-200 dark:border-stone-800'
                   }`}
@@ -807,18 +1058,25 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
                         {order.cliente}
                       </strong>
 
-                      {/* Status Badge */}
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                          isEntregue
-                            ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
-                            : order.status === 'pronto'
-                            ? 'bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 border border-sky-300 dark:border-sky-800'
-                            : 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
-                        }`}
-                      >
-                        {isEntregue ? 'Entregue (Aguardando Pagamento)' : order.status}
-                      </span>
+                      {/* Status / Payment Badge */}
+                      {isPago ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 inline-flex items-center gap-1">
+                          <Check className="w-3 h-3" />
+                          <span>Quitado (Pago)</span>
+                        </span>
+                      ) : (
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                            isEntregue
+                              ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+                              : order.status === 'pronto'
+                              ? 'bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 border border-sky-300 dark:border-sky-800'
+                              : 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                          }`}
+                        >
+                          {isEntregue ? 'Entregue (Aguardando Pagamento)' : order.status}
+                        </span>
+                      )}
                     </div>
 
                     <div className="text-xs text-stone-500 dark:text-stone-400 flex items-center gap-3 flex-wrap">
@@ -843,10 +1101,16 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
                   <div className="flex items-center justify-between md:justify-end gap-3 pt-2 md:pt-0 border-t md:border-t-0 border-stone-100 dark:border-stone-800">
                     <div className="text-left md:text-right pr-2">
                       <span className="text-[11px] text-stone-500 dark:text-stone-400 block">
-                        A Receber:
+                        {isPago ? 'Total Quitado:' : 'A Receber:'}
                       </span>
-                      <strong className="text-base sm:text-lg font-black text-amber-900 dark:text-amber-300 tabular-nums">
-                        {formatCurrency(restante)}
+                      <strong
+                        className={`text-base sm:text-lg font-black tabular-nums ${
+                          isPago
+                            ? 'text-emerald-700 dark:text-emerald-400'
+                            : 'text-amber-900 dark:text-amber-300'
+                        }`}
+                      >
+                        {formatCurrency(isPago ? val : restante)}
                       </strong>
                       <span className="text-[10px] text-stone-500 dark:text-stone-400 block">
                         Total {formatCurrency(val)} {sin > 0 ? `(sinal ${formatCurrency(sin)})` : ''}
@@ -854,27 +1118,41 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleCobrarWhatsApp(order)}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 rounded-xl transition-colors min-h-[38px]"
-                        title="Enviar ou copiar lembrete de cobrança para WhatsApp"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                        <span className="hidden sm:inline">
-                          {copiedId === order.id ? 'Copiado!' : 'Cobrar WhatsApp'}
-                        </span>
-                      </button>
+                      {!isPago && (
+                        <button
+                          type="button"
+                          onClick={() => handleCobrarWhatsApp(order)}
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 rounded-xl transition-colors min-h-[38px] cursor-pointer"
+                          title="Enviar ou copiar lembrete de cobrança para WhatsApp"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          <span className="hidden sm:inline">
+                            {copiedId === order.id ? 'Copiado!' : 'Cobrar WhatsApp'}
+                          </span>
+                        </button>
+                      )}
 
-                      <button
-                        type="button"
-                        onClick={() => handleBaixarPagamento(order)}
-                        className="flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl shadow-xs transition-all active:scale-95 min-h-[38px]"
-                        title="Confirmar recebimento do pagamento e dar baixa"
-                      >
-                        <Check className="w-4 h-4" />
-                        <span>Dar Baixa</span>
-                      </button>
+                      {!isPago ? (
+                        <button
+                          type="button"
+                          onClick={() => handleBaixarPagamento(order)}
+                          className="flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl shadow-xs transition-all active:scale-95 min-h-[38px] cursor-pointer"
+                          title="Confirmar recebimento do pagamento e dar baixa"
+                        >
+                          <Check className="w-4 h-4" />
+                          <span>Dar Baixa</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onUpdatePayment && onUpdatePayment(order.id, false)}
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-600 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 rounded-xl transition-all min-h-[38px] cursor-pointer"
+                          title="Reabrir este pagamento como pendente / a receber"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5 text-stone-500" />
+                          <span>Desfazer baixa</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
