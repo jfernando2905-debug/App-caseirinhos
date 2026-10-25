@@ -52,7 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
   const openOrdersCount = (data.orders || []).filter((o) => o.status !== 'entregue').length;
 
   return (
-    <header className="sticky top-0 z-30 bg-stone-900 text-stone-100 border-b border-stone-800 shadow-md">
+    <header className="md:hidden sticky top-0 z-30 bg-stone-900 text-stone-100 border-b border-stone-800 shadow-md">
       <div className="max-w-6xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2 sm:gap-4">
         {/* Zone 1: Wordmark */}
         <div 

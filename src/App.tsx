@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { AppData, Recipe, Ingredient, AppSettings, Order, OrderStatus } from './types';
 import { loadAppData, saveAppData, getInitialSeedData, uid, DEFAULT_CONFIG } from './utils/storage';
 import { Header } from './components/Header';
+import { Sidebar } from './components/Sidebar';
 import { Navigation } from './components/Navigation';
 import { OrderList } from './components/OrderList';
 import { OrderFormModal } from './components/OrderFormModal';
@@ -482,22 +483,37 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-100/60 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col font-sans selection:bg-amber-200 transition-colors duration-200">
-      {/* Top Header */}
-      <Header
+    <div className="min-h-screen bg-stone-100/60 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col md:flex-row font-sans selection:bg-amber-200 transition-colors duration-200">
+      {/* Desktop Sidebar (Permanent left navigation on desktop) */}
+      <Sidebar
         data={data}
-        onNewRecipe={handleNewRecipe}
-        onNewOrder={handleNewOrder}
-        onOpenPaste={() => setPasteModalOpen(true)}
-        onOpenAuth={() => setAuthModalOpen(true)}
         activeTab={activeTab}
         onNavigate={handleNavigate}
+        onNewOrder={handleNewOrder}
+        onNewRecipe={handleNewRecipe}
+        onOpenPaste={() => setPasteModalOpen(true)}
+        onOpenAuth={() => setAuthModalOpen(true)}
         theme={theme}
         onToggleTheme={handleToggleTheme}
       />
 
-      {/* Main App Container */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-3.5 sm:px-6 pt-3.5 sm:pt-6 pb-28 md:pb-12">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile Top Header (Visible only on mobile) */}
+        <Header
+          data={data}
+          onNewRecipe={handleNewRecipe}
+          onNewOrder={handleNewOrder}
+          onOpenPaste={() => setPasteModalOpen(true)}
+          onOpenAuth={() => setAuthModalOpen(true)}
+          activeTab={activeTab}
+          onNavigate={handleNavigate}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
+        />
+
+        {/* Main View Container */}
+        <main className="flex-1 max-w-6xl w-full mx-auto px-3.5 sm:px-6 md:px-8 pt-3.5 sm:pt-6 md:pt-8 pb-28 md:pb-12">
         {activeTab === 'orders' && (
           <OrderList
             orders={data.orders || []}
@@ -584,7 +600,8 @@ export default function App() {
             onOpenAuth={() => setAuthModalOpen(true)}
           />
         )}
-      </main>
+        </main>
+      </div>
 
       {/* Mobile Bottom Navigation */}
       <Navigation
