@@ -163,7 +163,8 @@ export function subscribeToUserData(
       });
       callbacks.onIngredients(items);
     },
-    (error) => {
+    (error: any) => {
+      if (error?.name === 'AbortError' || error?.message?.includes('aborted')) return;
       console.warn(`Firestore sync error on ${ingsPath}:`, error);
       if (callbacks.onError) callbacks.onError(error);
     }
@@ -197,7 +198,8 @@ export function subscribeToUserData(
       });
       callbacks.onRecipes(items);
     },
-    (error) => {
+    (error: any) => {
+      if (error?.name === 'AbortError' || error?.message?.includes('aborted')) return;
       console.warn(`Firestore sync error on ${recsPath}:`, error);
       if (callbacks.onError) callbacks.onError(error);
     }
@@ -231,7 +233,8 @@ export function subscribeToUserData(
       items.sort((a, b) => (b.entrega || '').localeCompare(a.entrega || ''));
       callbacks.onOrders(items);
     },
-    (error) => {
+    (error: any) => {
+      if (error?.name === 'AbortError' || error?.message?.includes('aborted')) return;
       console.warn(`Firestore sync error on ${ordersPath}:`, error);
       if (callbacks.onError) callbacks.onError(error);
     }
@@ -255,7 +258,8 @@ export function subscribeToUserData(
         });
       }
     },
-    (error) => {
+    (error: any) => {
+      if (error?.name === 'AbortError' || error?.message?.includes('aborted')) return;
       console.warn(`Firestore sync error on ${settingsPath}:`, error);
       if (callbacks.onError) callbacks.onError(error);
     }

@@ -86,46 +86,53 @@ export default function App() {
     if (!user) return;
 
     let unsub: (() => void) | undefined;
+    let isCancelled = false;
 
     const setupSync = async () => {
       try {
         await ensureUserProfile(user.uid, user.email || '', user.displayName);
+        if (isCancelled) return;
 
         // Read current local data to ensure nothing is lost
         const currentLocal = loadAppData();
         const migrated = await seedLocalDataToCloudIfEmpty(user.uid, currentLocal);
+        if (isCancelled) return;
+
         if (migrated) {
           showToast('Seus dados foram sincronizados e salvos com sucesso na nuvem!');
         }
 
         // Subscribe to real-time changes across devices
-        unsub = subscribeToUserData(user.uid, {
-          onIngredients: (cloudIngs) => {
-            setData((prev) => ({ ...prev, ings: cloudIngs }));
-          },
-          onRecipes: (cloudRecs) => {
-            setData((prev) => ({ ...prev, recs: cloudRecs }));
-          },
-          onOrders: (cloudOrders) => {
-            setData((prev) => ({ ...prev, orders: cloudOrders }));
-          },
-          onSettings: (cloudCfg) => {
-            if (cloudCfg) {
-              setData((prev) => ({ ...prev, cfg: cloudCfg }));
-            }
-          },
-          onError: (err) => {
-            console.warn('Cloud synchronization warning:', err);
-          },
-        });
+        if (!isCancelled) {
+          unsub = subscribeToUserData(user.uid, {
+            onIngredients: (cloudIngs) => {
+              if (!isCancelled) setData((prev) => ({ ...prev, ings: cloudIngs }));
+            },
+            onRecipes: (cloudRecs) => {
+              if (!isCancelled) setData((prev) => ({ ...prev, recs: cloudRecs }));
+            },
+            onOrders: (cloudOrders) => {
+              if (!isCancelled) setData((prev) => ({ ...prev, orders: cloudOrders }));
+            },
+            onSettings: (cloudCfg) => {
+              if (!isCancelled && cloudCfg) {
+                setData((prev) => ({ ...prev, cfg: cloudCfg }));
+              }
+            },
+            onError: (err) => {
+              if (!isCancelled) console.warn('Cloud synchronization warning:', err);
+            },
+          });
+        }
       } catch (err: any) {
-        console.warn('Failed to initialize cloud database sync:', err);
+        if (!isCancelled) console.warn('Failed to initialize cloud database sync:', err);
       }
     };
 
     setupSync();
 
     return () => {
+      isCancelled = true;
       if (unsub) unsub();
     };
   }, [user]);

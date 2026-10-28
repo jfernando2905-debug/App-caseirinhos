@@ -12,7 +12,10 @@ export const googleProvider = new GoogleAuthProvider();
 async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
+      return;
+    }
     if (error instanceof Error && error.message.includes('the client is offline')) {
       console.warn('Firebase client is offline or initializing.');
     }
