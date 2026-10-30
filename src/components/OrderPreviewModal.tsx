@@ -5,26 +5,18 @@ import {
   Image as ImageIcon,
   Printer,
   MessageCircle,
-  Calendar,
-  Clock,
-  Phone,
-  User,
-  DollarSign,
   ChefHat,
-  CheckCircle2,
-  Clock3,
-  AlertCircle,
   Copy,
   Check,
-  Share2,
 } from 'lucide-react';
-import html2canvas from 'html2canvas-pro';
-import { Order, OrderStatus } from '../types';
+import { Order } from '../types';
 import {
   formatItemText,
   formatDatePtBR,
   sendOrderWhatsApp,
   generateOrderPdf,
+  downloadOrderJpeg,
+  PIX_CONFIG,
 } from '../utils/orderShare';
 import { formatCurrency } from '../utils/calculations';
 
@@ -45,6 +37,22 @@ export const OrderPreviewModal: React.FC<OrderPreviewModalProps> = ({
   const [downloadingJpeg, setDownloadingJpeg] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
+  const [copiedPix, setCopiedPix] = useState(false);
+
+  const handleCopyPix = async () => {
+    try {
+      await navigator.clipboard.writeText(PIX_CONFIG.chave);
+      setCopiedPix(true);
+      setTimeout(() => setCopiedPix(false), 2500);
+      if (onToast) {
+        onToast(`Chave Pix copiada: ${PIX_CONFIG.chaveFormatada} (CPF)`);
+      }
+    } catch {
+      if (onToast) {
+        onToast('Não foi possível copiar a chave Pix.', 'error');
+      }
+    }
+  };
 
   if (!isOpen || !order) return null;
 
@@ -52,44 +60,6 @@ export const OrderPreviewModal: React.FC<OrderPreviewModalProps> = ({
   const totalValue = order.valor || 0;
   const signalValue = order.sinal || 0;
   const remainingValue = Math.max(totalValue - signalValue, 0);
-
-  // Status visual attributes
-  const statusConfig: Record<
-    OrderStatus,
-    { label: string; bg: string; text: string; border: string }
-  > = {
-    pendente: {
-      label: 'Pendente',
-      bg: 'bg-amber-100',
-      text: 'text-amber-800',
-      border: 'border-amber-300',
-    },
-    pronto: {
-      label: 'Pronto para Entrega',
-      bg: 'bg-sky-100',
-      text: 'text-sky-800',
-      border: 'border-sky-300',
-    },
-    entregue: {
-      label: 'Entregue / Concluído',
-      bg: 'bg-emerald-100',
-      text: 'text-emerald-800',
-      border: 'border-emerald-300',
-    },
-  };
-
-  const currentStatus = statusConfig[order.status] || statusConfig.pendente;
-
-  // Clean filename generator
-  const getFileBaseName = () => {
-    const cleanCliente = (order.cliente || 'pedido')
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
-    return `comprovante-${cleanCliente}-${order.entrega || 'data'}`;
-  };
 
   // Download vector PDF
   const handleDownloadPdf = () => {
@@ -104,64 +74,16 @@ export const OrderPreviewModal: React.FC<OrderPreviewModalProps> = ({
     }
   };
 
-  // Download high-res JPEG using html2canvas-pro (native oklab/oklch support)
+  // Download high-definition JPEG matching PDF layout exactly via Canvas
   const handleDownloadJpeg = async () => {
-    if (!receiptRef.current) return;
     setDownloadingJpeg(true);
-
     try {
-      // High-resolution rendering (scale: 2 for sharp text on retina & mobile)
-      const canvas = await html2canvas(receiptRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        windowWidth: 700,
-      });
-
-      const fileName = `${getFileBaseName()}.jpeg`;
-
-      if (canvas.toBlob) {
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
-              const link = document.createElement('a');
-              link.download = fileName;
-              link.href = dataUrl;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            } else {
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement('a');
-              link.download = fileName;
-              link.href = url;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              setTimeout(() => URL.revokeObjectURL(url), 5000);
-            }
-            if (onToast) onToast('Comprovante em JPEG baixado com sucesso!');
-            setDownloadingJpeg(false);
-          },
-          'image/jpeg',
-          0.95
-        );
-      } else {
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
-        const link = document.createElement('a');
-        link.download = fileName;
-        link.href = dataUrl;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        if (onToast) onToast('Comprovante em JPEG baixado com sucesso!');
-        setDownloadingJpeg(false);
-      }
+      await downloadOrderJpeg(order);
+      if (onToast) onToast('Comprovante em JPEG baixado com sucesso!');
     } catch (err: any) {
       console.error('Failed to generate JPEG:', err);
       if (onToast) onToast('Erro ao gerar imagem JPEG: ' + err.message, 'error');
+    } finally {
       setDownloadingJpeg(false);
     }
   };
@@ -219,104 +141,92 @@ export const OrderPreviewModal: React.FC<OrderPreviewModalProps> = ({
 
         {/* Scrollable Receipt Preview Area */}
         <div className="p-4 sm:p-6 overflow-y-auto bg-stone-100 dark:bg-stone-950 flex justify-center">
-          {/* Printable / Renderable Receipt Card */}
+          {/* Printable / Renderable Receipt Card (Layout identical to PDF) */}
           <div
             ref={receiptRef}
-            className="w-full max-w-lg bg-white text-stone-900 p-6 sm:p-8 rounded-2xl shadow-md border border-stone-200 space-y-6 print:shadow-none print:border-none print:p-0 print:m-0"
-            style={{ minHeight: '520px', backgroundColor: '#ffffff' }}
+            className="w-full max-w-lg bg-white text-[#1e1914] p-6 sm:p-8 rounded-2xl shadow-lg border border-[#e6dcd2] space-y-4 print:shadow-none print:border-none print:p-0 print:m-0"
+            style={{ backgroundColor: '#ffffff', minHeight: '520px' }}
           >
-            {/* Header of Receipt */}
-            <div className="border-b-2 border-stone-100 pb-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">🍰</span>
-                    <h3 className="text-lg font-black tracking-tight text-stone-900 font-display">
-                      Caseirinhos Fer&Dre
-                    </h3>
-                  </div>
-                  <p className="text-xs text-stone-500 font-medium">
-                    Confeitaria Artesanal & Encomendas de Bolos
-                  </p>
-                  <p className="text-[11px] text-stone-400">
-                    Comprovante de Pedido • Emissão: {new Date().toLocaleDateString('pt-BR')}
-                  </p>
-                </div>
-
-                <div className="shrink-0 text-right space-y-1">
-                  <span
-                    className={`inline-block text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider border ${currentStatus.bg} ${currentStatus.text} ${currentStatus.border}`}
-                  >
-                    {currentStatus.label}
-                  </span>
-                  <p className="text-[10px] text-stone-400 font-mono">
-                    ID: #{order.id.slice(0, 8)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Customer & Delivery Block */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-3.5 bg-stone-50 rounded-xl border border-stone-100 text-xs">
-              <div className="space-y-1">
-                <span className="text-[10px] uppercase font-bold text-stone-400 tracking-wider">
-                  Cliente
-                </span>
-                <p className="font-bold text-sm text-stone-900">{order.cliente}</p>
-                {order.telefone && (
-                  <p className="text-stone-600 flex items-center gap-1 font-medium">
-                    <Phone className="w-3 h-3 text-stone-400" />
-                    <span>{order.telefone}</span>
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-1 sm:text-right">
-                <span className="text-[10px] uppercase font-bold text-stone-400 tracking-wider">
-                  Data de Entrega
-                </span>
-                <p className="font-bold text-sm text-amber-700 flex items-center gap-1 sm:justify-end">
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>{formatDatePtBR(order.entrega)}</span>
+            {/* Header Box (Matching PDF: warm beige rounded banner) */}
+            <div
+              className="rounded-xl p-4 sm:p-5 flex items-center justify-between gap-3 border border-[#e8dfd5]"
+              style={{ backgroundColor: '#f5f0eb' }}
+            >
+              <div>
+                <h3 className="text-lg sm:text-xl font-black tracking-tight text-[#2b1d14] font-display">
+                  ENCOMENDA DE BOLO
+                </h3>
+                <p className="text-xs text-[#78645a] font-medium">
+                  Caseirinhos Fer&Dre · Confeitaria Caseira
                 </p>
-                {order.hora && (
-                  <p className="text-stone-600 flex items-center gap-1 sm:justify-end font-medium">
-                    <Clock className="w-3 h-3 text-stone-400" />
-                    <span>Horário: às {order.hora}</span>
-                  </p>
-                )}
+              </div>
+
+              <div className="shrink-0 text-right">
+                <span
+                  className="text-xs sm:text-sm font-bold uppercase tracking-wider"
+                  style={{
+                    color:
+                      order.status === 'entregue'
+                        ? '#2e7d32'
+                        : order.status === 'pronto'
+                        ? '#0284c7'
+                        : '#d97706',
+                  }}
+                >
+                  {order.status.toUpperCase()}
+                </span>
+                <p className="text-[10px] text-[#a09088] font-mono mt-0.5">
+                  ID: #{order.id.slice(0, 8)}
+                </p>
               </div>
             </div>
 
-            {/* Cake Items Table */}
-            <div>
-              <div className="flex items-center justify-between pb-2 border-b border-stone-200">
-                <span className="text-xs font-bold uppercase tracking-wider text-stone-700">
-                  Itens da Encomenda ({items.length})
-                </span>
+            {/* Customer & Delivery Block (Matching PDF format) */}
+            <div className="space-y-1.5 text-sm text-[#463c37] pt-1">
+              <div className="flex items-baseline gap-3">
+                <span className="w-20 shrink-0 font-bold text-[#463c37]">Cliente:</span>
+                <strong className="font-bold text-[#1e1914]">{order.cliente}</strong>
               </div>
 
-              <div className="divide-y divide-stone-100 text-xs mt-1">
+              {order.telefone && (
+                <div className="flex items-baseline gap-3">
+                  <span className="w-20 shrink-0 font-bold text-[#463c37]">Telefone:</span>
+                  <span className="text-[#1e1914]">{order.telefone}</span>
+                </div>
+              )}
+
+              <div className="flex items-baseline gap-3">
+                <span className="w-20 shrink-0 font-bold text-[#463c37]">Entrega:</span>
+                <strong className="font-bold text-[#1e1914]">
+                  {formatDatePtBR(order.entrega)}
+                  {order.hora ? ` às ${order.hora}` : ''}
+                </strong>
+              </div>
+            </div>
+
+            {/* Separator line (Matching PDF #e6dcd2) */}
+            <div className="border-t border-[#e6dcd2]" />
+
+            {/* Bolos da Encomenda (Matching PDF) */}
+            <div className="space-y-2.5">
+              <h4 className="text-sm font-bold text-[#2b1d14]">
+                Bolos da Encomenda:
+              </h4>
+
+              <div className="space-y-2 text-sm text-[#1e1914]">
                 {items.map((it, idx) => (
-                  <div key={idx} className="py-2.5 flex items-center justify-between gap-3">
+                  <div key={idx} className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-2">
-                      <span className="font-bold text-amber-600 shrink-0 w-4 text-center">
-                        {it.qtd}×
+                      <span className="font-medium text-[#78645a] shrink-0">
+                        {items.length > 1 ? `${idx + 1})` : '•'}
                       </span>
                       <div>
-                        <p className="font-semibold text-stone-900 text-xs sm:text-sm">
-                          {it.tipo}
-                        </p>
-                        <p className="text-[11px] text-stone-500">
-                          {it.tamanho && <span>Tamanho: <strong>{it.tamanho}</strong></span>}
-                          {it.tamanho && it.sabor && <span> • </span>}
-                          {it.sabor && <span>Sabor: <strong>{it.sabor}</strong></span>}
-                        </p>
+                        <span className="font-semibold">{formatItemText(it)}</span>
                       </div>
                     </div>
 
                     {it.valorUnitario && it.valorUnitario > 0 ? (
-                      <span className="font-medium text-stone-700 tabular-nums shrink-0">
+                      <span className="font-bold text-[#55443c] tabular-nums shrink-0 text-xs sm:text-sm">
                         {formatCurrency(it.valorUnitario * it.qtd)}
                       </span>
                     ) : null}
@@ -325,60 +235,113 @@ export const OrderPreviewModal: React.FC<OrderPreviewModalProps> = ({
               </div>
             </div>
 
-            {/* Financial Summary */}
+            {/* Separator line */}
+            <div className="border-t border-[#e6dcd2]" />
+
+            {/* Financials (Matching PDF) */}
             {totalValue > 0 && (
-              <div className="p-4 bg-amber-50/70 rounded-2xl border border-amber-200/80 space-y-2 text-xs">
-                <div className="flex items-center justify-between text-stone-700">
-                  <span className="font-medium">Valor Total da Encomenda:</span>
-                  <span className="text-base font-bold text-stone-900 tabular-nums">
+              <div className="space-y-1.5 text-sm text-[#463c37]">
+                <div className="flex items-baseline gap-3">
+                  <span className="w-28 shrink-0 font-bold text-[#463c37]">Valor Total:</span>
+                  <strong className="text-base font-bold text-[#1e1914] tabular-nums">
                     {formatCurrency(totalValue)}
-                  </span>
+                  </strong>
                 </div>
 
                 {signalValue > 0 && (
-                  <div className="flex items-center justify-between text-stone-600 pt-1 border-t border-amber-200/60">
-                    <span>Sinal Pago adiantado:</span>
-                    <span className="font-semibold text-emerald-700 tabular-nums">
-                      - {formatCurrency(signalValue)}
+                  <div className="flex items-baseline gap-3">
+                    <span className="w-28 shrink-0 font-bold text-[#463c37]">Sinal Pago:</span>
+                    <span className="text-[#1e1914] tabular-nums font-medium">
+                      {formatCurrency(signalValue)}
                     </span>
                   </div>
                 )}
 
-                <div className="flex items-center justify-between pt-1.5 border-t border-amber-200 font-bold text-stone-900 text-sm">
-                  <span>Saldo Restante na Entrega:</span>
+                {signalValue > 0 && (
+                  <div className="flex items-baseline gap-3">
+                    <span className="w-28 shrink-0 font-bold text-[#463c37]">Restante:</span>
+                    <strong
+                      className={`tabular-nums ${
+                        remainingValue === 0 ? 'text-[#2e7d32]' : 'text-[#854d0e]'
+                      }`}
+                    >
+                      {remainingValue === 0 ? 'Quitado ✓' : formatCurrency(remainingValue)}
+                    </strong>
+                  </div>
+                )}
+
+                <div className="flex items-baseline gap-3 pt-0.5">
+                  <span className="w-28 shrink-0 font-bold text-[#463c37]">Pagamento:</span>
                   <span
-                    className={`tabular-nums ${
-                      remainingValue === 0
-                        ? 'text-emerald-700 font-bold'
-                        : 'text-amber-900 font-black text-base'
+                    className={`font-bold text-xs sm:text-sm ${
+                      order.pago ? 'text-[#2e7d32]' : 'text-[#b45309]'
                     }`}
                   >
-                    {remainingValue === 0 ? 'Quitado ✓' : formatCurrency(remainingValue)}
+                    {order.pago
+                      ? 'QUITADO / PAGO ✅'
+                      : `A RECEBER (${formatCurrency(remainingValue)}) ⏳`}
                   </span>
                 </div>
               </div>
             )}
 
-            {/* Observations */}
-            {order.obs && order.obs.trim() && (
-              <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs space-y-1">
-                <span className="font-bold text-stone-700 uppercase text-[10px] tracking-wider">
-                  Observações & Detalhes
+            {/* Pix Payment Box (Matching PDF: soft emerald box with green stroke) */}
+            <div
+              className="rounded-xl p-3.5 sm:p-4 border-2 border-[#22c55e] space-y-1.5"
+              style={{ backgroundColor: '#f8faf8' }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#15803d]">
+                  PAGAMENTO VIA PIX
                 </span>
-                <p className="text-stone-600 whitespace-pre-wrap leading-relaxed text-[11px]">
+
+                <button
+                  type="button"
+                  onClick={handleCopyPix}
+                  className="flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-bold text-[#15803d] hover:text-[#0f5c2b] bg-white hover:bg-emerald-50 border border-[#22c55e] rounded-md shadow-2xs transition-all active:scale-95 cursor-pointer no-print"
+                  title="Copiar chave Pix (CPF)"
+                >
+                  {copiedPix ? (
+                    <>
+                      <Check className="w-3 h-3 text-[#15803d]" />
+                      <span>Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3 text-[#15803d]" />
+                      <span>Copiar Chave</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between flex-wrap gap-1 text-xs sm:text-sm">
+                <span className="font-mono font-bold text-[#191919] tracking-wide">
+                  CPF: {PIX_CONFIG.chaveFormatada} ({PIX_CONFIG.chave})
+                </span>
+                <span className="text-xs text-[#6e6e6e]">
+                  Favorecido: {PIX_CONFIG.beneficiario}
+                </span>
+              </div>
+            </div>
+
+            {/* Observations (Matching PDF) */}
+            {order.obs && order.obs.trim() && (
+              <div className="space-y-1 text-xs sm:text-sm pt-1">
+                <strong className="block font-bold text-[#463c37]">Observações:</strong>
+                <p className="text-[#322823] whitespace-pre-wrap leading-relaxed text-xs sm:text-sm">
                   {order.obs}
                 </p>
               </div>
             )}
 
-            {/* Footer Message */}
-            <div className="pt-4 border-t border-dashed border-stone-200 text-center space-y-1 text-stone-400 text-[10px]">
-              <p className="font-medium text-stone-500">
-                Agradecemos pela preferência! Feito com amor e ingredientes de qualidade.
-              </p>
-              <p>
-                Este comprovante pode ser apresentado no momento da entrega do bolo.
-              </p>
+            {/* Footer Date (Matching PDF) */}
+            <div className="pt-3 border-t border-[#e6dcd2] flex items-center justify-between text-[11px] text-[#968c87]">
+              <span>
+                Impresso em {new Date().toLocaleDateString('pt-BR')} às{' '}
+                {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+              <span>Caseirinhos Fer&Dre</span>
             </div>
           </div>
         </div>
@@ -416,6 +379,25 @@ export const OrderPreviewModal: React.FC<OrderPreviewModalProps> = ({
             >
               <MessageCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <span>{copiedText ? 'Copiado!' : 'WhatsApp'}</span>
+            </button>
+
+            {/* Quick Copy Pix Button */}
+            <button
+              onClick={handleCopyPix}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-700 dark:text-stone-200 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700 rounded-xl transition-colors min-h-[40px]"
+              title="Copiar chave Pix (CPF: 06631306973)"
+            >
+              {copiedPix ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-emerald-700 dark:text-emerald-400">Pix Copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4 text-stone-500 shrink-0" />
+                  <span>Copiar Pix</span>
+                </>
+              )}
             </button>
 
             {/* Print Button */}
