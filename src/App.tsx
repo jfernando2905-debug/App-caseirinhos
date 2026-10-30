@@ -677,6 +677,8 @@ export default function App() {
           key={editingOrder ? `edit-${editingOrder.id}` : 'new-order'}
           order={editingOrder}
           recipes={data.recs}
+          ingredients={data.ings}
+          cfg={data.cfg}
           isOpen={orderFormOpen}
           onClose={() => {
             setOrderFormOpen(false);

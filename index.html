@@ -19,11 +19,34 @@
           });
         } catch (err) {}
 
+        try {
+          var _origConsoleError = console.error;
+          console.error = function() {
+            var args = Array.prototype.slice.call(arguments);
+            var joined = args.map(function(a) {
+              return (a && a.stack) ? (String(a) + ' ' + a.stack) : String(a);
+            }).join(' ');
+
+            if (
+              joined.indexOf('WebSocket') !== -1 ||
+              joined.indexOf('@vite/client') !== -1 ||
+              joined.indexOf('[vite]') !== -1 ||
+              joined.indexOf('WebSocket closed without opened') !== -1 ||
+              joined.indexOf('signal is aborted without reason') !== -1 ||
+              joined.indexOf('AbortError') !== -1
+            ) {
+              return;
+            }
+            return _origConsoleError.apply(console, arguments);
+          };
+        } catch (err) {}
+
         window.addEventListener('error', function(event) {
           var msg = (event.message || '') + (event.error ? ' ' + (event.error.message || '') + ' ' + (event.error.stack || '') : '');
           if (
             msg.indexOf('WebSocket') !== -1 ||
             msg.indexOf('@vite/client') !== -1 ||
+            msg.indexOf('[vite]') !== -1 ||
             (event.filename && (event.filename.indexOf('chrome-extension://') !== -1 || event.filename.indexOf('@vite/client') !== -1)) ||
             (event.error && event.error.stack && (event.error.stack.indexOf('chrome-extension://') !== -1 || event.error.stack.indexOf('@vite/client') !== -1 || event.error.stack.indexOf('WebSocket') !== -1))
           ) {
@@ -34,8 +57,14 @@
         }, true);
 
         window.addEventListener('unhandledrejection', function(event) {
-          var reason = event.reason ? (event.reason.message || String(event.reason)) : '';
-          if (reason.indexOf('WebSocket') !== -1 || reason.indexOf('@vite/client') !== -1) {
+          var reason = event.reason ? ((event.reason.message || '') + ' ' + (event.reason.stack || '') + ' ' + String(event.reason)) : '';
+          if (
+            reason.indexOf('WebSocket') !== -1 ||
+            reason.indexOf('@vite/client') !== -1 ||
+            reason.indexOf('[vite]') !== -1 ||
+            reason.indexOf('AbortError') !== -1 ||
+            reason.indexOf('signal is aborted without reason') !== -1
+          ) {
             event.preventDefault();
             event.stopImmediatePropagation();
             return true;

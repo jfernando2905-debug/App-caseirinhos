@@ -1,21 +1,111 @@
-import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Cake, Calendar, Clock, User, Phone, DollarSign, FileText } from 'lucide-react';
-import { Order, OrderItem, OrderStatus, Recipe } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  X,
+  Plus,
+  Trash2,
+  Cake,
+  Calendar,
+  Clock,
+  User,
+  Phone,
+  DollarSign,
+  FileText,
+  Sparkles,
+  RotateCcw,
+} from 'lucide-react';
+import { Order, OrderItem, OrderStatus, Recipe, Ingredient, AppSettings, RecipeSize } from '../types';
 import { CAKE_TYPES, CAKE_SIZES, CAKE_FLAVORS } from '../utils/orderShare';
 import { NumericInput } from './NumericInput';
 import { uid } from '../utils/storage';
+import { calculateSizeMetrics, formatCurrency } from '../utils/calculations';
 
 interface OrderFormModalProps {
   order: Order | null;
   recipes: Recipe[];
+  ingredients?: Ingredient[];
+  cfg?: AppSettings;
   isOpen: boolean;
   onClose: () => void;
   onSave: (order: Order) => void;
 }
 
+/**
+ * Calculates the unit price for a recipe and size.
+ * Uses manual selling price (size.sell or recipe.sell) or calculates from cost + target margin.
+ */
+export const getPriceForRecipeAndSize = (
+  recipe: Recipe,
+  sizeName?: string,
+  cfgParam?: AppSettings,
+  ingsParam?: Ingredient[]
+): number => {
+  if (!recipe) return 0;
+
+  // 1. Check recipe sizes
+  if (recipe.sizes && recipe.sizes.length > 0) {
+    let matchedSize = sizeName
+      ? recipe.sizes.find((s) => s.nome.toLowerCase().trim() === sizeName.toLowerCase().trim())
+      : undefined;
+
+    if (!matchedSize && sizeName) {
+      matchedSize = recipe.sizes.find(
+        (s) =>
+          s.nome.toLowerCase().includes(sizeName.toLowerCase()) ||
+          sizeName.toLowerCase().includes(s.nome.toLowerCase())
+      );
+    }
+
+    const targetSize = matchedSize || recipe.sizes[0];
+    if (targetSize && targetSize.sell > 0) {
+      return targetSize.sell;
+    }
+
+    if (targetSize && cfgParam && ingsParam && ingsParam.length > 0) {
+      try {
+        const metrics = calculateSizeMetrics(recipe, targetSize, cfgParam, ingsParam);
+        const effectivePrice = metrics.sellCakePrice > 0 ? metrics.sellCakePrice : metrics.suggestedCakePrice;
+        if (effectivePrice > 0) {
+          return Math.round(effectivePrice * 100) / 100;
+        }
+      } catch {
+        // fallback
+      }
+    }
+  }
+
+  // 2. Base recipe sell price
+  if (recipe.sell > 0) {
+    return recipe.sell;
+  }
+
+  // 3. Fallback calculation if possible
+  if (cfgParam && ingsParam && ingsParam.length > 0) {
+    try {
+      const defaultSize: RecipeSize = {
+        id: 'default',
+        nome: 'Padrão',
+        k: 1,
+        pack: recipe.pack || 0,
+        sell: recipe.sell || 0,
+      };
+      const metrics = calculateSizeMetrics(recipe, defaultSize, cfgParam, ingsParam);
+      const effectivePrice = metrics.sellCakePrice > 0 ? metrics.sellCakePrice : metrics.suggestedCakePrice;
+      if (effectivePrice > 0) {
+        return Math.round(effectivePrice * 100) / 100;
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  return 0;
+};
+
 export const OrderFormModal: React.FC<OrderFormModalProps> = ({
   order,
   recipes,
+  ingredients = [],
+  cfg,
   isOpen,
   onClose,
   onSave,
@@ -32,12 +122,17 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
   const [status, setStatus] = useState<OrderStatus>(order ? order.status : 'pendente');
   const [pago, setPago] = useState<boolean>(order ? !!order.pago : false);
   const [obs, setObs] = useState<string>(order ? order.obs || '' : '');
-  const [itens, setItens] = useState<OrderItem[]>(
-    order && order.itens && order.itens.length > 0
-      ? order.itens.map((it) => ({ ...it }))
-      : [{ tipo: CAKE_TYPES[0], tamanho: CAKE_SIZES[3], sabor: CAKE_FLAVORS[0], qtd: 1 }]
-  );
+  const [itens, setItens] = useState<OrderItem[]>([]);
   const [errorMsg, setErrorMsg] = useState<string>('');
+
+  // Helper to sum up items
+  const calculateItemsSum = (itemsList: OrderItem[]): number => {
+    return itemsList.reduce((acc, it) => {
+      const q = Math.max(1, it.qtd || 1);
+      const u = it.valorUnitario || 0;
+      return acc + u * q;
+    }, 0);
+  };
 
   // Re-synchronize form state whenever the order to edit changes or modal opens
   useEffect(() => {
@@ -51,36 +146,55 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
       setStatus(order.status || 'pendente');
       setPago(!!order.pago);
       setObs(order.obs || '');
-      setItens(
+
+      const initialItems: OrderItem[] =
         order.itens && order.itens.length > 0
           ? order.itens.map((it) => ({ ...it }))
-          : [{ tipo: CAKE_TYPES[0], tamanho: CAKE_SIZES[3], sabor: CAKE_FLAVORS[0], qtd: 1 }]
-      );
+          : [{ tipo: CAKE_TYPES[0], tamanho: CAKE_SIZES[3], sabor: CAKE_FLAVORS[0], qtd: 1 }];
+
+      setItens(initialItems);
     } else {
+      // New Order: default to first registered recipe with auto-pulled price if available
       setCliente('');
       setTelefone('');
       setEntrega(todayStr);
       setHora('');
-      setValor(0);
       setSinal(0);
       setStatus('pendente');
       setPago(false);
       setObs('');
-      setItens([
-        { tipo: CAKE_TYPES[0], tamanho: CAKE_SIZES[3], sabor: CAKE_FLAVORS[0], qtd: 1 },
-      ]);
+
+      let defaultItems: OrderItem[];
+      if (recipes && recipes.length > 0) {
+        const firstRec = recipes[0];
+        const firstSize = firstRec.sizes && firstRec.sizes[0] ? firstRec.sizes[0].nome : 'Padrão';
+        const price = getPriceForRecipeAndSize(firstRec, firstSize, cfg, ingredients);
+        defaultItems = [
+          {
+            tipo: 'Bolo caseiro',
+            tamanho: firstSize,
+            sabor: firstRec.name,
+            qtd: 1,
+            receitaId: firstRec.id,
+            valorUnitario: price > 0 ? price : undefined,
+          },
+        ];
+      } else {
+        defaultItems = [
+          { tipo: CAKE_TYPES[0], tamanho: CAKE_SIZES[3], sabor: CAKE_FLAVORS[0], qtd: 1 },
+        ];
+      }
+
+      setItens(defaultItems);
+      const autoTotal = calculateItemsSum(defaultItems);
+      setValor(autoTotal);
     }
     setErrorMsg('');
-  }, [order, isOpen, todayStr]);
+  }, [order, isOpen, todayStr, recipes, cfg, ingredients]);
+
+  const itemsSum = useMemo(() => calculateItemsSum(itens), [itens]);
 
   if (!isOpen) return null;
-
-  const handleAddItem = () => {
-    setItens([
-      ...itens,
-      { tipo: CAKE_TYPES[0], tamanho: CAKE_SIZES[3], sabor: CAKE_FLAVORS[0], qtd: 1 },
-    ]);
-  };
 
   const handleUpdateItem = (index: number, changes: Partial<OrderItem>) => {
     const newItems = [...itens];
@@ -88,31 +202,185 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
     setItens(newItems);
   };
 
+  const handleAddItem = () => {
+    let newItem: OrderItem;
+    if (recipes.length > 0) {
+      const firstRec = recipes[0];
+      const firstSize = firstRec.sizes && firstRec.sizes[0] ? firstRec.sizes[0].nome : 'Padrão';
+      const price = getPriceForRecipeAndSize(firstRec, firstSize, cfg, ingredients);
+      newItem = {
+        tipo: 'Bolo caseiro',
+        tamanho: firstSize,
+        sabor: firstRec.name,
+        qtd: 1,
+        receitaId: firstRec.id,
+        valorUnitario: price > 0 ? price : undefined,
+      };
+    } else {
+      newItem = {
+        tipo: CAKE_TYPES[0],
+        tamanho: CAKE_SIZES[3],
+        sabor: CAKE_FLAVORS[0],
+        qtd: 1,
+      };
+    }
+
+    const updated = [...itens, newItem];
+    setItens(updated);
+    const newSum = calculateItemsSum(updated);
+    if (newSum > 0) {
+      setValor(newSum);
+    }
+  };
+
   const handleRemoveItem = (index: number) => {
     if (itens.length <= 1) return;
     const newItems = [...itens];
     newItems.splice(index, 1);
     setItens(newItems);
+    const newSum = calculateItemsSum(newItems);
+    if (newSum > 0) {
+      setValor(newSum);
+    }
   };
 
-  const handleSelectRecipeAsCake = (index: number, recipeId: string) => {
+  // 1. Select Recipe as Cake: auto-pulls cake name, size, unit price, and updates total
+  const handleSelectRecipe = (index: number, recipeId: string) => {
+    if (!recipeId) {
+      // Switched to custom unlinked cake
+      const updated = [...itens];
+      updated[index] = {
+        ...updated[index],
+        receitaId: undefined,
+      };
+      setItens(updated);
+      return;
+    }
+
     const rec = recipes.find((r) => r.id === recipeId);
     if (!rec) return;
 
-    const firstSize = rec.sizes && rec.sizes[0] ? rec.sizes[0].nome : 'Padrão';
-    const firstPrice = rec.sizes && rec.sizes[0] ? rec.sizes[0].sell : 0;
+    const currentItem = itens[index];
+    // Preserve current size if recipe supports it, otherwise default to recipe's first size
+    let targetSize = currentItem.tamanho;
+    const hasMatchingSize = rec.sizes?.some(
+      (s) => s.nome.toLowerCase().trim() === (targetSize || '').toLowerCase().trim()
+    );
+    if (!hasMatchingSize) {
+      targetSize = rec.sizes && rec.sizes[0] ? rec.sizes[0].nome : (currentItem.tamanho || 'Padrão');
+    }
 
-    handleUpdateItem(index, {
-      tipo: 'Bolo caseiro',
-      sabor: rec.name,
-      tamanho: firstSize,
+    const price = getPriceForRecipeAndSize(rec, targetSize, cfg, ingredients);
+
+    const updated = [...itens];
+    updated[index] = {
+      ...updated[index],
       receitaId: rec.id,
-      valorUnitario: firstPrice > 0 ? firstPrice : undefined,
-    });
+      sabor: rec.name,
+      tamanho: targetSize,
+      valorUnitario: price > 0 ? price : updated[index].valorUnitario,
+    };
+    setItens(updated);
 
-    // If order has no value set yet and recipe has sell price, pre-fill
-    if (valor === 0 && firstPrice > 0) {
-      setValor(firstPrice);
+    const newSum = calculateItemsSum(updated);
+    if (newSum > 0) {
+      setValor(newSum);
+    }
+  };
+
+  // 2. Change Cake Size: if linked to recipe, re-pulls that size's price automatically
+  const handleChangeSize = (index: number, newSize: string) => {
+    const currentItem = itens[index];
+    let price = currentItem.valorUnitario;
+
+    const rec =
+      recipes.find((r) => r.id === currentItem.receitaId) ||
+      recipes.find((r) => r.name.toLowerCase().trim() === currentItem.sabor.toLowerCase().trim());
+
+    if (rec) {
+      const sizePrice = getPriceForRecipeAndSize(rec, newSize, cfg, ingredients);
+      if (sizePrice > 0) {
+        price = sizePrice;
+      }
+    }
+
+    const updated = [...itens];
+    updated[index] = {
+      ...updated[index],
+      tamanho: newSize,
+      valorUnitario: price,
+    };
+    setItens(updated);
+
+    const newSum = calculateItemsSum(updated);
+    if (newSum > 0) {
+      setValor(newSum);
+    }
+  };
+
+  // 3. Change Flavor: if matches a registered recipe, links it and pulls price
+  const handleChangeFlavor = (index: number, newFlavor: string) => {
+    const currentItem = itens[index];
+    const matchedRec = recipes.find(
+      (r) =>
+        r.name.toLowerCase().trim() === newFlavor.toLowerCase().trim() ||
+        r.name.toLowerCase().includes(newFlavor.toLowerCase()) ||
+        newFlavor.toLowerCase().includes(r.name.toLowerCase())
+    );
+
+    let price = currentItem.valorUnitario;
+    let recId = currentItem.receitaId;
+
+    if (matchedRec) {
+      recId = matchedRec.id;
+      const sizePrice = getPriceForRecipeAndSize(matchedRec, currentItem.tamanho, cfg, ingredients);
+      if (sizePrice > 0) {
+        price = sizePrice;
+      }
+    }
+
+    const updated = [...itens];
+    updated[index] = {
+      ...updated[index],
+      sabor: newFlavor,
+      receitaId: recId,
+      valorUnitario: price,
+    };
+    setItens(updated);
+
+    const newSum = calculateItemsSum(updated);
+    if (newSum > 0) {
+      setValor(newSum);
+    }
+  };
+
+  // 4. Change Quantity
+  const handleChangeQtd = (index: number, newQtd: number) => {
+    const updated = [...itens];
+    updated[index] = {
+      ...updated[index],
+      qtd: Math.max(1, newQtd),
+    };
+    setItens(updated);
+
+    const newSum = calculateItemsSum(updated);
+    if (newSum > 0) {
+      setValor(newSum);
+    }
+  };
+
+  // 5. Change Unit Price manually
+  const handleChangeUnitPrice = (index: number, unitPrice: number) => {
+    const updated = [...itens];
+    updated[index] = {
+      ...updated[index],
+      valorUnitario: unitPrice,
+    };
+    setItens(updated);
+
+    const newSum = calculateItemsSum(updated);
+    if (newSum > 0) {
+      setValor(newSum);
     }
   };
 
@@ -134,7 +402,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
       sabor: it.sabor.trim() || 'Tradicional',
       qtd: Math.max(1, Number(it.qtd) || 1),
       receitaId: it.receitaId,
-      valorUnitario: it.valorUnitario,
+      valorUnitario: it.valorUnitario && it.valorUnitario > 0 ? it.valorUnitario : undefined,
     }));
 
     const savedOrder: Order = {
@@ -169,7 +437,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
               {isEditing ? 'Editar Encomenda' : 'Nova Encomenda de Bolo'}
             </h3>
             <p className="text-xs text-stone-500 dark:text-stone-400">
-              Preencha os dados do cliente e os bolos do pedido
+              Preencha os dados do cliente e selecione os bolos com preços automáticos
             </p>
           </div>
           <button
@@ -199,9 +467,9 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
                 type="text"
                 value={cliente}
                 onChange={(e) => setCliente(e.target.value)}
-                placeholder="Nome do cliente"
+                placeholder="Nome completo do cliente"
                 className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-xl text-sm font-medium focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500 transition-colors min-h-[42px]"
-                autoFocus={!isEditing}
+                required
               />
             </div>
 
@@ -220,63 +488,157 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
             </div>
           </div>
 
-          {/* Bolos da Encomenda (Multiple Items) */}
-          <div className="space-y-3 pt-1">
+          {/* Bolos da Encomenda */}
+          <div className="space-y-3 pt-2 border-t border-stone-100 dark:border-stone-800">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-stone-800 dark:text-stone-200 uppercase tracking-wider flex items-center gap-1.5">
+              <label className="text-xs font-bold text-stone-900 dark:text-stone-100 uppercase tracking-wider flex items-center gap-1.5">
                 <Cake className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                 <span>Bolos da Encomenda ({itens.length})</span>
               </label>
+              {itemsSum > 0 && (
+                <span className="text-xs font-bold text-amber-900 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2.5 py-0.5 rounded-lg border border-amber-200 dark:border-amber-800">
+                  Total bolos: {formatCurrency(itemsSum)}
+                </span>
+              )}
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               {itens.map((it, idx) => {
-                const isCustomFlavor = !CAKE_FLAVORS.includes(it.sabor) && it.sabor !== '';
+                const linkedRecipe =
+                  recipes.find((r) => r.id === it.receitaId) ||
+                  recipes.find((r) => r.name.toLowerCase().trim() === it.sabor.toLowerCase().trim());
+
+                // Available sizes: prefer recipe's configured sizes if available, otherwise fallback to CAKE_SIZES
+                const availableSizes: string[] =
+                  linkedRecipe && linkedRecipe.sizes && linkedRecipe.sizes.length > 0
+                    ? linkedRecipe.sizes.map((s) => s.nome)
+                    : CAKE_SIZES;
+
+                const isCustomFlavor =
+                  !linkedRecipe && !CAKE_FLAVORS.includes(it.sabor) && it.sabor !== '';
+
+                const subtotal = (it.valorUnitario || 0) * (it.qtd || 1);
 
                 return (
                   <div
                     key={idx}
-                    className="p-3.5 bg-stone-50 dark:bg-stone-800/50 border border-stone-200/90 dark:border-stone-700/80 rounded-2xl space-y-2.5 relative"
+                    className="p-3.5 bg-stone-50 dark:bg-stone-800/50 border border-stone-200/90 dark:border-stone-700/80 rounded-2xl space-y-3 relative transition-all"
                   >
+                    {/* Item Top Bar */}
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-stone-700 dark:text-stone-300">
-                        Bolo #{idx + 1}
-                      </span>
-                      {itens.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(idx)}
-                          className="text-stone-400 hover:text-rose-600 text-xs flex items-center gap-1 p-1 min-h-[32px]"
-                          title="Remover bolo"
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-amber-900 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 rounded-md">
+                          Bolo #{idx + 1}
+                        </span>
+                        {linkedRecipe && (
+                          <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                            <Sparkles className="w-2.5 h-2.5" />
+                            <span>Preço automático</span>
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-stone-700 dark:text-stone-300 tabular-nums">
+                          Subtotal: <strong className="text-amber-900 dark:text-amber-200">{formatCurrency(subtotal)}</strong>
+                        </span>
+
+                        {itens.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(idx)}
+                            className="text-stone-400 hover:text-rose-600 text-xs flex items-center gap-1 p-1 min-h-[32px] cursor-pointer"
+                            title="Remover bolo"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Primary Cake / Recipe Selector */}
+                    <div>
+                      <label className="block text-xs font-bold text-stone-800 dark:text-stone-200 mb-1">
+                        Selecione o Bolo *
+                      </label>
+
+                      {recipes.length > 0 ? (
+                        <select
+                          value={it.receitaId || (linkedRecipe ? linkedRecipe.id : '__custom')}
+                          onChange={(e) => {
+                            if (e.target.value === '__custom') {
+                              handleSelectRecipe(idx, '');
+                            } else {
+                              handleSelectRecipe(idx, e.target.value);
+                            }
+                          }}
+                          className="w-full px-3 py-2 bg-white dark:bg-stone-800 border-2 border-amber-300 dark:border-amber-700/80 text-stone-900 dark:text-stone-100 rounded-xl text-xs sm:text-sm font-semibold focus:border-amber-500 min-h-[42px] shadow-2xs"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Remover</span>
-                        </button>
+                          <option value="" disabled>
+                            Selecione um bolo cadastrado...
+                          </option>
+                          {recipes.map((r) => {
+                            const samplePrice = getPriceForRecipeAndSize(r, it.tamanho, cfg, ingredients);
+                            return (
+                              <option key={r.id} value={r.id}>
+                                🍰 {r.name} {samplePrice > 0 ? `— a partir de ${formatCurrency(samplePrice)}` : ''}
+                              </option>
+                            );
+                          })}
+                          <option value="__custom">✏️ Outro bolo / sabor personalizado...</option>
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={it.sabor}
+                          onChange={(e) => handleChangeFlavor(idx, e.target.value)}
+                          placeholder="Digite o sabor do bolo..."
+                          className="w-full px-3 py-2 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-xs sm:text-sm font-medium focus:border-amber-500 min-h-[40px]"
+                        />
                       )}
                     </div>
 
-                    {/* Pre-fill from Registered Recipes option */}
-                    {recipes.length > 0 && (
-                      <div className="pb-1">
-                        <select
-                          value={it.receitaId || ''}
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              handleSelectRecipeAsCake(idx, e.target.value);
-                            }
-                          }}
-                          className="w-full px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-dashed border-amber-300 dark:border-amber-700/80 rounded-lg text-xs font-medium text-amber-900 dark:text-amber-300 focus:border-amber-500"
-                        >
-                          <option value="">⚡ Usar receita cadastrada no app (opcional)...</option>
-                          {recipes.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              Receita: {r.name}
-                            </option>
-                          ))}
-                        </select>
+                    {/* Custom Flavor Free Text (if custom chosen) */}
+                    {(!linkedRecipe || isCustomFlavor) && (
+                      <div>
+                        <label className="block text-[11px] font-semibold text-stone-600 dark:text-stone-400 mb-0.5">
+                          Sabor / Recheio Personalizado
+                        </label>
+                        <div className="space-y-1.5">
+                          <select
+                            value={isCustomFlavor ? '__outro' : it.sabor}
+                            onChange={(e) => {
+                              if (e.target.value === '__outro') {
+                                handleChangeFlavor(idx, 'Outro sabor');
+                              } else {
+                                handleChangeFlavor(idx, e.target.value);
+                              }
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-xs sm:text-sm font-medium focus:border-amber-500 min-h-[38px]"
+                          >
+                            <option value="">Selecione o sabor sugerido...</option>
+                            {CAKE_FLAVORS.map((f) => (
+                              <option key={f} value={f}>
+                                {f}
+                              </option>
+                            ))}
+                            <option value="__outro">Digitar sabor livremente...</option>
+                          </select>
+
+                          {isCustomFlavor && (
+                            <input
+                              type="text"
+                              value={it.sabor === 'Outro sabor' ? '' : it.sabor}
+                              onChange={(e) => handleChangeFlavor(idx, e.target.value)}
+                              placeholder="Digite o sabor ou combinação..."
+                              className="w-full px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-lg text-xs font-medium focus:border-amber-500 min-h-[38px]"
+                            />
+                          )}
+                        </div>
                       </div>
                     )}
 
+                    {/* Tipo de Bolo e Tamanho */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       <div>
                         <label className="block text-[11px] font-semibold text-stone-600 dark:text-stone-400 mb-0.5">
@@ -296,61 +658,35 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-semibold text-stone-600 dark:text-stone-400 mb-0.5">
-                          Tamanho
+                        <label className="block text-[11px] font-semibold text-stone-600 dark:text-stone-400 mb-0.5 flex items-center justify-between">
+                          <span>Tamanho</span>
+                          {linkedRecipe && (
+                            <span className="text-[10px] text-amber-700 dark:text-amber-400">
+                              Altera preço
+                            </span>
+                          )}
                         </label>
                         <select
                           value={it.tamanho}
-                          onChange={(e) => handleUpdateItem(idx, { tamanho: e.target.value })}
+                          onChange={(e) => handleChangeSize(idx, e.target.value)}
                           className="w-full px-2.5 py-2 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-xs sm:text-sm font-medium focus:border-amber-500 min-h-[40px]"
                         >
-                          {CAKE_SIZES.map((sz) => (
-                            <option key={sz} value={sz}>
-                              {sz}
-                            </option>
-                          ))}
+                          {availableSizes.map((sz) => {
+                            const szPrice = linkedRecipe
+                              ? getPriceForRecipeAndSize(linkedRecipe, sz, cfg, ingredients)
+                              : 0;
+                            return (
+                              <option key={sz} value={sz}>
+                                {sz} {szPrice > 0 ? `(${formatCurrency(szPrice)})` : ''}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      <div className="sm:col-span-2">
-                        <label className="block text-[11px] font-semibold text-stone-600 dark:text-stone-400 mb-0.5">
-                          Sabor / Recheio
-                        </label>
-                        <div className="space-y-1.5">
-                          <select
-                            value={isCustomFlavor ? '__outro' : it.sabor}
-                            onChange={(e) => {
-                              if (e.target.value === '__outro') {
-                                handleUpdateItem(idx, { sabor: 'Outro sabor' });
-                              } else {
-                                handleUpdateItem(idx, { sabor: e.target.value });
-                              }
-                            }}
-                            className="w-full px-2.5 py-2 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-xs sm:text-sm font-medium focus:border-amber-500 min-h-[40px]"
-                          >
-                            <option value="">Selecione o sabor...</option>
-                            {CAKE_FLAVORS.map((f) => (
-                              <option key={f} value={f}>
-                                {f}
-                              </option>
-                            ))}
-                            <option value="__outro">Outro sabor (digitar livre)</option>
-                          </select>
-
-                          {isCustomFlavor && (
-                            <input
-                              type="text"
-                              value={it.sabor === 'Outro sabor' ? '' : it.sabor}
-                              onChange={(e) => handleUpdateItem(idx, { sabor: e.target.value })}
-                              placeholder="Digite o sabor ou combinação desejada..."
-                              className="w-full px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-lg text-xs font-medium focus:border-amber-500 min-h-[38px]"
-                            />
-                          )}
-                        </div>
-                      </div>
-
+                    {/* Quantidade, Preço Unitário e Subtotal */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
                       <div>
                         <label className="block text-[11px] font-semibold text-stone-600 dark:text-stone-400 mb-0.5">
                           Quantidade
@@ -360,10 +696,40 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
                           min="1"
                           value={it.qtd}
                           onChange={(e) =>
-                            handleUpdateItem(idx, { qtd: Math.max(1, parseInt(e.target.value, 10) || 1) })
+                            handleChangeQtd(idx, parseInt(e.target.value, 10) || 1)
                           }
                           className="w-full px-2.5 py-2 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-xs sm:text-sm font-bold text-center tabular-nums focus:border-amber-500 min-h-[40px]"
                         />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-stone-600 dark:text-stone-400 mb-0.5 flex items-center justify-between">
+                          <span>Preço Unitário</span>
+                          {it.valorUnitario && it.valorUnitario > 0 ? (
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                              Puxado ✓
+                            </span>
+                          ) : null}
+                        </label>
+                        <NumericInput
+                          value={it.valorUnitario || 0}
+                          onChange={(val) => handleChangeUnitPrice(idx, val)}
+                          placeholder="0,00"
+                          prefix="R$"
+                          min={0}
+                          className="px-2.5 py-2 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-xs sm:text-sm font-bold tabular-nums text-right focus:border-amber-500 min-h-[40px]"
+                        />
+                      </div>
+
+                      <div className="col-span-2 sm:col-span-1 flex flex-col justify-end">
+                        <div className="p-2 bg-amber-50/80 dark:bg-amber-950/40 rounded-xl border border-amber-200/80 dark:border-amber-800/60 text-right min-h-[40px] flex flex-col justify-center">
+                          <span className="text-[10px] text-stone-500 dark:text-stone-400 leading-tight">
+                            Subtotal ({it.qtd}×)
+                          </span>
+                          <strong className="text-sm font-black text-amber-900 dark:text-amber-200 tabular-nums">
+                            {formatCurrency(subtotal)}
+                          </strong>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -374,7 +740,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
             <button
               type="button"
               onClick={handleAddItem}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-amber-900 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/40 border border-amber-200 dark:border-amber-800 rounded-xl transition-colors min-h-[40px]"
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-amber-900 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/40 border border-amber-200 dark:border-amber-800 rounded-xl transition-colors min-h-[40px] cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>+ Adicionar outro bolo na encomenda</span>
@@ -393,6 +759,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
                 value={entrega}
                 onChange={(e) => setEntrega(e.target.value)}
                 className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-semibold tabular-nums focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500 transition-colors min-h-[42px]"
+                required
               />
             </div>
 
@@ -413,10 +780,23 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
           {/* Valores: Valor Total e Sinal Pago */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1 flex items-center gap-1.5">
-                <DollarSign className="w-3.5 h-3.5 text-stone-400" />
-                <span>Valor Total da Encomenda (R$)</span>
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 flex items-center gap-1.5">
+                  <DollarSign className="w-3.5 h-3.5 text-stone-400" />
+                  <span>Valor Total da Encomenda (R$)</span>
+                </label>
+                {itemsSum > 0 && Math.abs(valor - itemsSum) > 0.01 && (
+                  <button
+                    type="button"
+                    onClick={() => setValor(itemsSum)}
+                    className="text-[10px] font-bold text-amber-700 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                    title="Usar soma calculada dos bolos"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5" />
+                    <span>Usar soma ({formatCurrency(itemsSum)})</span>
+                  </button>
+                )}
+              </div>
               <NumericInput
                 value={valor}
                 onChange={(val) => setValor(val)}
@@ -425,6 +805,11 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
                 min={0}
                 className="px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-bold tabular-nums text-right focus:bg-white dark:focus:bg-stone-800 min-h-[42px]"
               />
+              {itemsSum > 0 && (
+                <span className="text-[11px] text-stone-500 dark:text-stone-400 block mt-1">
+                  Soma dos bolos selecionados: <strong>{formatCurrency(itemsSum)}</strong>
+                </span>
+              )}
             </div>
 
             <div>
@@ -441,7 +826,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
               />
               {sinal > 0 && valor > 0 && (
                 <span className="text-[11px] text-stone-500 dark:text-stone-400 block mt-1">
-                  Restante a pagar na entrega: <strong>{restante > 0 ? `R$ ${restante.toFixed(2).replace('.', ',')}` : 'Quitado'}</strong>
+                  Restante a pagar na entrega: <strong>{restante > 0 ? formatCurrency(restante) : 'Quitado'}</strong>
                 </span>
               )}
             </div>
@@ -458,7 +843,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
                   key={st}
                   type="button"
                   onClick={() => setStatus(st)}
-                  className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all capitalize min-h-[40px] ${
+                  className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all capitalize min-h-[40px] cursor-pointer ${
                     status === st
                       ? st === 'entregue'
                         ? 'bg-emerald-600 text-white border-emerald-600'
@@ -483,19 +868,19 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPago(false)}
-                className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all flex items-center justify-center gap-1.5 min-h-[40px] ${
+                className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all flex items-center justify-center gap-1.5 min-h-[40px] cursor-pointer ${
                   !pago
                     ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border-amber-300 dark:border-amber-700 font-bold shadow-2xs'
                     : 'bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-700'
                 }`}
               >
-                <span>⏳ A Receber ({restante > 0 ? `R$ ${restante.toFixed(2).replace('.', ',')}` : 'Pendente'})</span>
+                <span>⏳ A Receber ({restante > 0 ? formatCurrency(restante) : 'Pendente'})</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setPago(true)}
-                className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all flex items-center justify-center gap-1.5 min-h-[40px] ${
+                className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all flex items-center justify-center gap-1.5 min-h-[40px] cursor-pointer ${
                   pago
                     ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 font-bold shadow-2xs'
                     : 'bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-700'
@@ -526,13 +911,13 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-colors min-h-[42px]"
+              className="px-4 py-2 text-xs font-semibold text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-colors min-h-[42px] cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-xs transition-all min-h-[42px]"
+              className="px-5 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-xs transition-all min-h-[42px] cursor-pointer"
             >
               {isEditing ? 'Salvar Alterações' : 'Criar Encomenda'}
             </button>
