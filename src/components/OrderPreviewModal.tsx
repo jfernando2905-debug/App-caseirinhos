@@ -45,7 +45,7 @@ export const OrderPreviewModal: React.FC<OrderPreviewModalProps> = ({
       setCopiedPix(true);
       setTimeout(() => setCopiedPix(false), 2500);
       if (onToast) {
-        onToast(`Chave Pix copiada: ${PIX_CONFIG.chaveFormatada} (CPF)`);
+        onToast(`Chave Pix copiada: ${PIX_CONFIG.chaveFormatada} (${PIX_CONFIG.beneficiario} · Banco ${PIX_CONFIG.banco})`);
       }
     } catch {
       if (onToast) {
@@ -319,8 +319,8 @@ export const OrderPreviewModal: React.FC<OrderPreviewModalProps> = ({
                 <span className="font-mono font-bold text-[#191919] tracking-wide">
                   CPF: {PIX_CONFIG.chaveFormatada} ({PIX_CONFIG.chave})
                 </span>
-                <span className="text-xs text-[#6e6e6e]">
-                  Favorecido: {PIX_CONFIG.beneficiario}
+                <span className="text-xs text-[#55443c] font-medium">
+                  Beneficiária: <strong>{PIX_CONFIG.beneficiario}</strong> · Banco: <strong>{PIX_CONFIG.banco}</strong>
                 </span>
               </div>
             </div>

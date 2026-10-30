@@ -56,7 +56,8 @@ export const PIX_CONFIG = {
   tipo: 'CPF',
   chave: '06631306973',
   chaveFormatada: '066.313.069-73',
-  beneficiario: 'Caseirinhos Fer&Dre',
+  beneficiario: 'Andressa Martins de Oliveira',
+  banco: 'NuBank',
 };
 
 export const formatOrderWhatsApp = (order: Order): string => {
@@ -103,7 +104,7 @@ export const formatOrderWhatsApp = (order: Order): string => {
     text += `Obs: ${order.obs.trim()}\n`;
   }
 
-  text += `\n🔑 *Chave Pix para pagamento:*\nTipo: CPF\nChave: ${PIX_CONFIG.chave} (${PIX_CONFIG.chaveFormatada})\nBeneficiário: ${PIX_CONFIG.beneficiario}\n`;
+  text += `\n🔑 *Chave Pix para pagamento:*\nTipo: CPF\nChave: ${PIX_CONFIG.chave} (${PIX_CONFIG.chaveFormatada})\nBeneficiária: ${PIX_CONFIG.beneficiario}\nBanco: ${PIX_CONFIG.banco}\n`;
 
   return text;
 };
@@ -121,7 +122,8 @@ export const formatPaymentReminderWhatsApp = (order: Order): string => {
   text += `🔑 *Chave Pix para pagamento:*\n`;
   text += `Tipo: CPF\n`;
   text += `Chave: ${PIX_CONFIG.chave} (${PIX_CONFIG.chaveFormatada})\n`;
-  text += `Beneficiário: ${PIX_CONFIG.beneficiario}\n\n`;
+  text += `Beneficiária: ${PIX_CONFIG.beneficiario}\n`;
+  text += `Banco: ${PIX_CONFIG.banco}\n\n`;
   text += `Qualquer dúvida estamos à disposição! Muito obrigado(a)! 🍰❤️`;
   return text;
 };
@@ -268,24 +270,24 @@ export const generateOrderPdf = (order: Order): void => {
   doc.setFillColor(248, 252, 248);
   doc.setDrawColor(34, 197, 94);
   doc.setLineWidth(0.35);
-  doc.roundedRect(margin, y, contentWidth, 18, 2.5, 2.5, 'FD');
+  doc.roundedRect(margin, y, contentWidth, 20, 2.5, 2.5, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(21, 128, 61);
-  doc.text('PAGAMENTO VIA PIX', margin + 4, y + 6);
+  doc.text('PAGAMENTO VIA PIX', margin + 4, y + 5.5);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10.5);
+  doc.setFontSize(10);
   doc.setTextColor(25, 25, 25);
-  doc.text(`CPF: ${PIX_CONFIG.chaveFormatada}  (${PIX_CONFIG.chave})`, margin + 4, y + 12.5);
+  doc.text(`CPF: ${PIX_CONFIG.chaveFormatada}  (${PIX_CONFIG.chave})`, margin + 4, y + 11.5);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.setTextColor(110, 110, 110);
-  doc.text(`Favorecido: ${PIX_CONFIG.beneficiario}`, pageWidth - margin - 4, y + 12.5, { align: 'right' });
+  doc.setTextColor(90, 80, 75);
+  doc.text(`Beneficiária: ${PIX_CONFIG.beneficiario}  ·  Banco: ${PIX_CONFIG.banco}`, margin + 4, y + 16.5);
 
-  y += 23;
+  y += 25;
 
   // Observations
   if (order.obs && order.obs.trim()) {
@@ -431,7 +433,7 @@ export const renderOrderToCanvas = (order: Order, targetWidth = 800): HTMLCanvas
   }
 
   // Pix Box
-  calcY += 76 + 24;
+  calcY += 84 + 24;
 
   // Observations
   if (order.obs && order.obs.trim()) {
@@ -588,7 +590,7 @@ export const renderOrderToCanvas = (order: Order, targetWidth = 800): HTMLCanvas
 
   // 7. Pix Payment Box (matching PDF exactly)
   y += 8;
-  const pixBoxHeight = 74;
+  const pixBoxHeight = 84;
   drawCanvasRoundRect(ctx, margin, y, contentWidth, pixBoxHeight, 8, '#f8faf8', '#22c55e', 1.5);
 
   ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -599,11 +601,9 @@ export const renderOrderToCanvas = (order: Order, targetWidth = 800): HTMLCanvas
   ctx.fillStyle = '#191919';
   ctx.fillText(`CPF: ${PIX_CONFIG.chaveFormatada}  (${PIX_CONFIG.chave})`, margin + 16, y + 36);
 
-  ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-  ctx.fillStyle = '#6e6e6e';
-  const favText = `Favorecido: ${PIX_CONFIG.beneficiario}`;
-  const favW = ctx.measureText(favText).width;
-  ctx.fillText(favText, margin + contentWidth - favW - 16, y + 40);
+  ctx.font = '13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  ctx.fillStyle = '#55443c';
+  ctx.fillText(`Beneficiária: ${PIX_CONFIG.beneficiario}  ·  Banco: ${PIX_CONFIG.banco}`, margin + 16, y + 60);
 
   y += pixBoxHeight + 22;
 
