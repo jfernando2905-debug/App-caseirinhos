@@ -47,6 +47,7 @@ interface BatchScalerProps {
   initialRecipeId?: string;
   onOpenRecipe: (recipe: Recipe) => void;
   onSaveIngredient?: (ingredient: Ingredient) => void;
+  onUpdateRecipe?: (recipe: Recipe) => void;
 }
 
 type ScalerMode = 'manual' | 'orders' | 'shopping';
@@ -63,6 +64,9 @@ interface AggregatedIngredient {
   surplusBase: number;
   ing?: Ingredient;
   usedIn: { recipeName: string; count: number }[];
+  isCakePackaging?: boolean;
+  cakeSizeName?: string;
+  recipeIds?: string[];
 }
 
 interface AggregatedBakeItem {
@@ -83,6 +87,7 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
   cfg,
   initialRecipeId,
   onSaveIngredient,
+  onUpdateRecipe,
 }) => {
   // Mode switcher
   const [mode, setMode] = useState<ScalerMode>('orders');
@@ -209,6 +214,19 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
       }
     >();
 
+    const packMap = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        sizeName: string;
+        totalQty: number;
+        unitPrice: number;
+        recipeNames: Map<string, number>;
+        recipeIds: Set<string>;
+      }
+    >();
+
     let totalRevenue = 0;
     let totalGasCost = 0;
     let totalElecCost = 0;
@@ -282,8 +300,35 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
         const itemFactor = k * qty;
         totalGasCost += calculateGasCost(rec, cfg) * itemFactor;
         totalElecCost += calculateElectricityCost(rec, cfg) * itemFactor;
-        totalPackCost += Math.max(matchedSize.pack || rec.pack || 0, 0) * qty;
+        const unitPackCost = Math.max(matchedSize.pack || rec.pack || 0, 0);
+        totalPackCost += unitPackCost * qty;
         totalFuelCost += Math.max(rec.fuel || 0, 0) * itemFactor;
+
+        // Aggregate cake packaging for shopping list
+        const sizeLabel = matchedSize.nome && matchedSize.nome.toLowerCase() !== 'default' ? matchedSize.nome : 'Padrão';
+        const packKey = `${sizeLabel}__${unitPackCost}`;
+        const packId = `pack-cake-${sizeLabel.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${unitPackCost.toFixed(2).replace('.', '_')}`;
+        const packName = sizeLabel !== 'Padrão'
+          ? `Embalagem para Bolo (Tamanho ${sizeLabel})`
+          : `Embalagem para Bolo (${rec.name})`;
+
+        if (!packMap.has(packKey)) {
+          packMap.set(packKey, {
+            id: packId,
+            name: packName,
+            sizeName: sizeLabel,
+            totalQty: 0,
+            unitPrice: unitPackCost,
+            recipeNames: new Map<string, number>(),
+            recipeIds: new Set<string>(),
+          });
+        }
+
+        const packEntry = packMap.get(packKey)!;
+        packEntry.totalQty += qty;
+        packEntry.recipeIds.add(rec.id);
+        const currentRecipeCount = packEntry.recipeNames.get(rec.name) || 0;
+        packEntry.recipeNames.set(rec.name, currentRecipeCount + qty);
 
         // Aggregate ingredients
         for (const rItem of rec.items || []) {
@@ -380,6 +425,66 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
       }
     );
 
+    // Convert aggregated cake packaging into shopping list items
+    const packAggregatedList: AggregatedIngredient[] = Array.from(packMap.values()).map(
+      (packData) => {
+        const matchedIng = ingredients.find(
+          (i) =>
+            i.id === packData.id ||
+            (i.category === 'Embalagens' &&
+              (i.name.toLowerCase() === packData.name.toLowerCase() ||
+                i.name.toLowerCase().includes(packData.sizeName.toLowerCase())))
+        );
+
+        const syntheticIng: Ingredient = matchedIng || {
+          id: packData.id,
+          name: packData.name,
+          price: packData.unitPrice,
+          size: 1,
+          unit: 'un',
+          category: 'Embalagens',
+          hist: [],
+        };
+
+        const baseQty = packData.totalQty;
+        const packSize = syntheticIng.size > 0 ? syntheticIng.size : 1;
+        const defaultPackagesNeeded = Math.ceil(baseQty / packSize);
+        const packagesNeeded =
+          customPackageCounts[packData.id] !== undefined
+            ? customPackageCounts[packData.id]
+            : defaultPackagesNeeded;
+
+        const uPrice = syntheticIng.price !== undefined ? syntheticIng.price : packData.unitPrice;
+        const proportionalCost = baseQty * (uPrice / packSize);
+        const packageCost = packagesNeeded * uPrice;
+        const surplusBase = Math.max(0, packagesNeeded * packSize - baseQty);
+
+        const usedInArray = Array.from(packData.recipeNames.entries()).map(([recipeName, count]) => ({
+          recipeName,
+          count,
+        }));
+
+        return {
+          id: packData.id,
+          name: packData.name,
+          category: 'Embalagens',
+          baseQty,
+          baseUnit: 'un' as const,
+          proportionalCost,
+          packagesNeeded,
+          packageCost,
+          surplusBase,
+          ing: syntheticIng,
+          usedIn: usedInArray,
+          isCakePackaging: true,
+          cakeSizeName: packData.sizeName,
+          recipeIds: Array.from(packData.recipeIds),
+        };
+      }
+    );
+
+    aggregatedIngsList.push(...packAggregatedList);
+
     // Sort by category then name
     aggregatedIngsList.sort((a, b) => {
       if (a.category !== b.category) {
@@ -388,7 +493,9 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
       return a.name.localeCompare(b.name);
     });
 
-    const totalIngCost = aggregatedIngsList.reduce((sum, i) => sum + i.proportionalCost, 0);
+    const totalIngCost = aggregatedIngsList
+      .filter((i) => !i.isCakePackaging)
+      .reduce((sum, i) => sum + i.proportionalCost, 0);
     const totalCommercialCost = aggregatedIngsList.reduce((sum, i) => sum + i.packageCost, 0);
     const totalCost = totalIngCost + totalGasCost + totalElecCost + totalPackCost + totalFuelCost;
     const totalProfit = totalRevenue - totalCost;
@@ -422,7 +529,7 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
 
     if (!manualBatchResult) return [];
 
-    return manualBatchResult.ingredients.map((item, idx) => {
+    const list: AggregatedIngredient[] = manualBatchResult.ingredients.map((item, idx) => {
       const ing = item.ing;
       let effectiveUnit = item.unit;
       let effectiveQty = item.scaledQty;
@@ -479,7 +586,82 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
         usedIn: [{ recipeName: manualBatchResult.recipe.name, count: safeCakeCount }],
       };
     });
-  }, [shoppingSource, aggregatedIngredients, manualBatchResult, safeCakeCount, customPackageCounts]);
+
+    // Add cake packaging for manual batch!
+    const packCostPerCake = Math.max(selectedSize.pack || currentRecipe.pack || 0, 0);
+    const sizeLabel = selectedSize.nome && selectedSize.nome.toLowerCase() !== 'default' ? selectedSize.nome : 'Padrão';
+    const packId = `pack-cake-manual-${currentRecipe.id}-${selectedSize.id || 'def'}`;
+    const packName = sizeLabel !== 'Padrão'
+      ? `Embalagem para Bolo (Tamanho ${sizeLabel})`
+      : `Embalagem para Bolo (${currentRecipe.name})`;
+
+    const matchedIng = ingredients.find(
+      (i) =>
+        i.id === packId ||
+        (i.category === 'Embalagens' &&
+          (i.name.toLowerCase() === packName.toLowerCase() ||
+            i.name.toLowerCase().includes(sizeLabel.toLowerCase())))
+    );
+
+    const syntheticIng: Ingredient = matchedIng || {
+      id: packId,
+      name: packName,
+      price: packCostPerCake,
+      size: 1,
+      unit: 'un',
+      category: 'Embalagens',
+      hist: [],
+    };
+
+    const cakeCountNeeded = safeCakeCount;
+    const packSize = syntheticIng.size > 0 ? syntheticIng.size : 1;
+    const defaultPackagesNeeded = Math.ceil(cakeCountNeeded / packSize);
+    const packagesNeeded =
+      customPackageCounts[packId] !== undefined
+        ? customPackageCounts[packId]
+        : defaultPackagesNeeded;
+
+    const uPrice = syntheticIng.price !== undefined ? syntheticIng.price : packCostPerCake;
+    const proportionalCost = cakeCountNeeded * (uPrice / packSize);
+    const packageCost = packagesNeeded * uPrice;
+    const surplusBase = Math.max(0, packagesNeeded * packSize - cakeCountNeeded);
+
+    list.push({
+      id: packId,
+      name: packName,
+      category: 'Embalagens',
+      baseQty: cakeCountNeeded,
+      baseUnit: 'un',
+      proportionalCost,
+      packagesNeeded,
+      packageCost,
+      surplusBase,
+      ing: syntheticIng,
+      usedIn: [{ recipeName: manualBatchResult.recipe.name, count: safeCakeCount }],
+      isCakePackaging: true,
+      cakeSizeName: sizeLabel,
+      recipeIds: [currentRecipe.id],
+    });
+
+    list.sort((a, b) => {
+      if (a.category !== b.category) {
+        return (a.category || '').localeCompare(b.category || '');
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+    return list;
+  }, [
+    shoppingSource,
+    aggregatedIngredients,
+    manualBatchResult,
+    safeCakeCount,
+    customPackageCounts,
+    selectedSize,
+    currentRecipe,
+    cfg,
+    ingredients,
+  ]);
 
   // Format base quantities into friendly strings (e.g., 2,4 kg (2.400 g) or 360 g)
   const formatFriendlyQty = (baseQty: number, baseUnit: 'g' | 'ml' | 'un', itemName?: string) => {
@@ -563,14 +745,15 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
 
     const updatedIng: Ingredient = {
       ...(targetIng || {
-        id: editingItem.id.startsWith('manual-') ? `ing-${now}` : editingItem.id,
+        id: editingItem.id.startsWith('manual-') || editingItem.id.startsWith('pack-') ? `ing-${now}` : editingItem.id,
         name: editingItem.name,
-        category: editingItem.category || (isBanana ? 'Hortifrúti' : 'Geral'),
+        category: editingItem.isCakePackaging ? 'Embalagens' : (editingItem.category || (isBanana ? 'Hortifrúti' : 'Geral')),
         hist: [],
       }),
       price: editPrice,
       size: editSize,
       unit: finalUnit,
+      category: editingItem.isCakePackaging ? 'Embalagens' : (targetIng?.category || editingItem.category || (isBanana ? 'Hortifrúti' : 'Geral')),
       hist: [...(targetIng?.hist || []), histEntry],
     };
 
@@ -578,12 +761,50 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
       onSaveIngredient(updatedIng);
     }
 
+    // If it's a cake packaging item, also update the packaging cost on the recipes!
+    if (onUpdateRecipe && editingItem.isCakePackaging && editingItem.recipeIds) {
+      const unitPackCost = editSize > 0 ? editPrice / editSize : editPrice;
+      for (const rId of editingItem.recipeIds) {
+        const rec = recipes.find((r) => r.id === rId);
+        if (!rec) continue;
+        let modified = false;
+        let newSizes = rec.sizes ? [...rec.sizes] : [];
+        if (editingItem.cakeSizeName && newSizes.length > 0) {
+          newSizes = newSizes.map((sz) => {
+            if (
+              sz.nome.toLowerCase() === editingItem.cakeSizeName?.toLowerCase() ||
+              (editingItem.cakeSizeName === 'Padrão' && sz.id === 'default')
+            ) {
+              modified = true;
+              return { ...sz, pack: unitPackCost };
+            }
+            return sz;
+          });
+        }
+        const newBasePack =
+          newSizes.length === 0 || editingItem.cakeSizeName === 'Padrão'
+            ? unitPackCost
+            : rec.pack || unitPackCost;
+        if (modified || rec.pack !== newBasePack) {
+          onUpdateRecipe({
+            ...rec,
+            pack: newBasePack,
+            sizes: newSizes.length > 0 ? newSizes : rec.sizes,
+          });
+        }
+      }
+    }
+
     setCustomPackageCounts((prev) => ({
       ...prev,
       [editingItem.id]: Math.max(1, editPackagesCount),
     }));
 
-    setEditSuccessMsg('Preço e embalagem atualizados! Custos recalculados.');
+    setEditSuccessMsg(
+      editingItem.isCakePackaging
+        ? 'Preço da embalagem atualizado no catálogo e nas receitas!'
+        : 'Preço e embalagem atualizados! Custos recalculados.'
+    );
     setTimeout(() => {
       setEditingItem(null);
       setEditSuccessMsg('');
@@ -1382,26 +1603,41 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <strong
-                              className={`text-sm font-semibold ${
+                              className={`text-sm font-semibold flex items-center gap-1.5 ${
                                 isChecked
                                   ? 'text-stone-500 dark:text-stone-400 line-through'
                                   : 'text-stone-900 dark:text-stone-100'
                               }`}
                             >
-                              {item.name}
+                              {item.isCakePackaging && (
+                                <Package className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                              )}
+                              <span>{item.name}</span>
                             </strong>
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-700 text-stone-600 dark:text-stone-300">
+                            <span
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                                item.isCakePackaging
+                                  ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 font-bold border border-amber-200 dark:border-amber-800'
+                                  : 'bg-stone-100 dark:bg-stone-700 text-stone-600 dark:text-stone-300'
+                              }`}
+                            >
                               {item.category || 'Geral'}
                             </span>
                           </div>
 
                           <div className="text-xs text-stone-500 dark:text-stone-400 mt-1 flex items-center gap-2 flex-wrap">
                             <span>
-                              Necessário na receita: <strong>{formatFriendlyQty(item.baseQty, item.baseUnit, item.name)}</strong>
+                              {item.isCakePackaging ? 'Necessário para os bolos:' : 'Necessário na receita:'}{' '}
+                              <strong>{formatFriendlyQty(item.baseQty, item.baseUnit, item.name)}</strong>
                             </span>
                             {item.surplusBase > 0 && hasPackInfo && (
                               <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
                                 (Sobra estimada: {formatFriendlyQty(item.surplusBase, item.baseUnit, item.name)})
+                              </span>
+                            )}
+                            {item.isCakePackaging && item.usedIn && item.usedIn.length > 0 && (
+                              <span className="text-[11px] text-amber-800 dark:text-amber-300 font-medium">
+                                · Para: {item.usedIn.map((u) => `${u.count}× ${u.recipeName}`).join(', ')}
                               </span>
                             )}
                           </div>
@@ -1509,15 +1745,27 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
                   </button>
                 </div>
 
-                <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 rounded-xl text-xs text-amber-900 dark:text-amber-300 space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <History className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
-                    <span>Impacto nos Custos & Histórico de Preços</span>
+                {editingItem.isCakePackaging ? (
+                  <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 rounded-xl text-xs text-amber-900 dark:text-amber-300 space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <Package className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
+                      <span>Embalagem do Bolo & Atualização de Custos</span>
+                    </div>
+                    <p className="text-stone-600 dark:text-stone-400 text-[11px]">
+                      Ao alterar o preço ou quantidade desta embalagem, o custo de embalagem das receitas correspondentes será atualizado automaticamente, recalculando o custo do bolo e preço de venda sugerido.
+                    </p>
                   </div>
-                  <p className="text-stone-600 dark:text-stone-400 text-[11px]">
-                    Alterar o preço ou tamanho da embalagem atualiza o ingrediente no catálogo, recalcula automaticamente o custo de todas as receitas e fornadas no sistema, e grava o registro no histórico de preços.
-                  </p>
-                </div>
+                ) : (
+                  <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 rounded-xl text-xs text-amber-900 dark:text-amber-300 space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <History className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
+                      <span>Impacto nos Custos & Histórico de Preços</span>
+                    </div>
+                    <p className="text-stone-600 dark:text-stone-400 text-[11px]">
+                      Alterar o preço ou tamanho da embalagem atualiza o ingrediente no catálogo, recalcula automaticamente o custo de todas as receitas e fornadas no sistema, e grava o registro no histórico de preços.
+                    </p>
+                  </div>
+                )}
 
                 <div className="space-y-3.5">
                   <div>

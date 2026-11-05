@@ -639,6 +639,7 @@ export default function App() {
             initialRecipeId={scalingRecipeId}
             onOpenRecipe={handleOpenRecipe}
             onSaveIngredient={handleSaveIngredient}
+            onUpdateRecipe={handleUpdateRecipe}
           />
         )}
 
