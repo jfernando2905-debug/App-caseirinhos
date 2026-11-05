@@ -8,6 +8,18 @@ function convertKitchenMeasure(ingredientName: string, quantity: number, unitRaw
   const normName = ingredientName.toLowerCase();
   const normUnit = unitRaw.toLowerCase().trim();
 
+  // Banana & weighed fruits in baking/confectionery
+  if (normName.includes('banana')) {
+    if (normUnit === 'kg') return { qty: quantity * 1000, unit: 'g' };
+    if (normUnit === 'g' || normUnit === 'gr' || normUnit === 'gramas') return { qty: quantity, unit: 'g' };
+    // Large numbers like 360, 200, 300 are grams (360 g of banana, not 360 bananas!)
+    if (quantity >= 15) {
+      return { qty: quantity, unit: 'g' };
+    }
+    // Small quantities (1 to 14 bananas): 1 medium banana ≈ 120 g
+    return { qty: Math.round(quantity * 120), unit: 'g' };
+  }
+
   // If already standard unit
   if (normUnit === 'kg') return { qty: quantity * 1000, unit: 'g' };
   if (normUnit === 'g' || normUnit === 'gr' || normUnit === 'gramas') return { qty: quantity, unit: 'g' };

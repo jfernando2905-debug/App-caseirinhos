@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AppData, Recipe, Ingredient, AppSettings, Order, OrderStatus } from './types';
-import { loadAppData, saveAppData, getInitialSeedData, uid, DEFAULT_CONFIG } from './utils/storage';
+import { loadAppData, saveAppData, sanitizeAppData, getInitialSeedData, uid, DEFAULT_CONFIG } from './utils/storage';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { Navigation } from './components/Navigation';
@@ -106,10 +106,14 @@ export default function App() {
         if (!isCancelled) {
           unsub = subscribeToUserData(user.uid, {
             onIngredients: (cloudIngs) => {
-              if (!isCancelled) setData((prev) => ({ ...prev, ings: cloudIngs }));
+              if (!isCancelled) {
+                setData((prev) => sanitizeAppData({ ...prev, ings: cloudIngs }));
+              }
             },
             onRecipes: (cloudRecs) => {
-              if (!isCancelled) setData((prev) => ({ ...prev, recs: cloudRecs }));
+              if (!isCancelled) {
+                setData((prev) => sanitizeAppData({ ...prev, recs: cloudRecs }));
+              }
             },
             onOrders: (cloudOrders) => {
               if (!isCancelled) setData((prev) => ({ ...prev, orders: cloudOrders }));
@@ -634,6 +638,7 @@ export default function App() {
             cfg={data.cfg}
             initialRecipeId={scalingRecipeId}
             onOpenRecipe={handleOpenRecipe}
+            onSaveIngredient={handleSaveIngredient}
           />
         )}
 

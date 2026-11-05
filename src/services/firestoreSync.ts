@@ -151,13 +151,20 @@ export function subscribeToUserData(
       const items: Ingredient[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
+        const rawName = data.name || '';
+        let unit = data.unit || 'g';
+        const isBanana = rawName.toLowerCase().includes('banana');
+        if (isBanana && unit === 'un') {
+          unit = (Number(data.size) > 10 ? 'g' : 'kg');
+        }
+
         items.push({
           id: data.id || docSnap.id,
-          name: data.name || '',
+          name: rawName,
           price: Number(data.price) || 0,
           size: Number(data.size) || 1,
-          unit: data.unit || 'g',
-          category: data.category,
+          unit: unit,
+          category: data.category || (isBanana ? 'Hortifrúti' : undefined),
           hist: Array.isArray(data.hist) ? data.hist : [],
         });
       });
@@ -179,6 +186,21 @@ export function subscribeToUserData(
       const items: Recipe[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
+        const rawItems = Array.isArray(data.items) ? data.items : [];
+        const cleanItems = rawItems.map((it: any) => {
+          const isBananaItem =
+            (it.nome && it.nome.toLowerCase().includes('banana')) ||
+            (it.name && it.name.toLowerCase().includes('banana'));
+          if (it.unit === 'un' && (isBananaItem || it.qty >= 15)) {
+            return {
+              ...it,
+              qty: it.qty >= 15 ? it.qty : Math.round(it.qty * 120),
+              unit: 'g',
+            };
+          }
+          return it;
+        });
+
         items.push({
           id: data.id || docSnap.id,
           name: data.name || '',
@@ -189,7 +211,7 @@ export function subscribeToUserData(
           fuel: Number(data.fuel) || 0.5,
           pack: Number(data.pack) || 3.5,
           sell: Number(data.sell) || 0,
-          items: Array.isArray(data.items) ? data.items : [],
+          items: cleanItems,
           equip: Array.isArray(data.equip) ? data.equip : [],
           sizes: Array.isArray(data.sizes) ? data.sizes : [],
           category: data.category || 'Bolos Caseiros',
@@ -227,6 +249,8 @@ export function subscribeToUserData(
           status: data.status || 'pendente',
           obs: data.obs || '',
           itens: Array.isArray(data.itens) ? data.itens : [],
+          adicionais: data.adicionais || undefined,
+          valorAdicionais: typeof data.valorAdicionais === 'number' ? data.valorAdicionais : undefined,
           criadoEm: typeof data.criadoEm === 'number' ? data.criadoEm : Date.now(),
         });
       });

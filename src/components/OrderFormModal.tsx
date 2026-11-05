@@ -122,6 +122,8 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
   const [status, setStatus] = useState<OrderStatus>(order ? order.status : 'pendente');
   const [pago, setPago] = useState<boolean>(order ? !!order.pago : false);
   const [obs, setObs] = useState<string>(order ? order.obs || '' : '');
+  const [adicionais, setAdicionais] = useState<string>(order ? order.adicionais || '' : '');
+  const [valorAdicionais, setValorAdicionais] = useState<number>(order ? order.valorAdicionais || 0 : 0);
   const [itens, setItens] = useState<OrderItem[]>([]);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
@@ -146,6 +148,8 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
       setStatus(order.status || 'pendente');
       setPago(!!order.pago);
       setObs(order.obs || '');
+      setAdicionais(order.adicionais || '');
+      setValorAdicionais(order.valorAdicionais || 0);
 
       const initialItems: OrderItem[] =
         order.itens && order.itens.length > 0
@@ -163,6 +167,8 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
       setStatus('pendente');
       setPago(false);
       setObs('');
+      setAdicionais('');
+      setValorAdicionais(0);
 
       let defaultItems: OrderItem[];
       if (recipes && recipes.length > 0) {
@@ -193,6 +199,13 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
   }, [order, isOpen, todayStr, recipes, cfg, ingredients]);
 
   const itemsSum = useMemo(() => calculateItemsSum(itens), [itens]);
+  const totalCalculado = useMemo(() => itemsSum + (valorAdicionais || 0), [itemsSum, valorAdicionais]);
+
+  const handleValorAdicionaisChange = (newVal: number) => {
+    const diff = newVal - (valorAdicionais || 0);
+    setValorAdicionais(newVal);
+    setValor((prev) => Math.max(0, Math.round((prev + diff) * 100) / 100));
+  };
 
   if (!isOpen) return null;
 
@@ -229,7 +242,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
     setItens(updated);
     const newSum = calculateItemsSum(updated);
     if (newSum > 0) {
-      setValor(newSum);
+      setValor(newSum + (valorAdicionais || 0));
     }
   };
 
@@ -239,9 +252,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
     newItems.splice(index, 1);
     setItens(newItems);
     const newSum = calculateItemsSum(newItems);
-    if (newSum > 0) {
-      setValor(newSum);
-    }
+    setValor(newSum + (valorAdicionais || 0));
   };
 
   // 1. Select Recipe as Cake: auto-pulls cake name, size, unit price, and updates total
@@ -284,7 +295,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
 
     const newSum = calculateItemsSum(updated);
     if (newSum > 0) {
-      setValor(newSum);
+      setValor(newSum + (valorAdicionais || 0));
     }
   };
 
@@ -314,7 +325,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
 
     const newSum = calculateItemsSum(updated);
     if (newSum > 0) {
-      setValor(newSum);
+      setValor(newSum + (valorAdicionais || 0));
     }
   };
 
@@ -350,7 +361,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
 
     const newSum = calculateItemsSum(updated);
     if (newSum > 0) {
-      setValor(newSum);
+      setValor(newSum + (valorAdicionais || 0));
     }
   };
 
@@ -365,7 +376,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
 
     const newSum = calculateItemsSum(updated);
     if (newSum > 0) {
-      setValor(newSum);
+      setValor(newSum + (valorAdicionais || 0));
     }
   };
 
@@ -380,7 +391,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
 
     const newSum = calculateItemsSum(updated);
     if (newSum > 0) {
-      setValor(newSum);
+      setValor(newSum + (valorAdicionais || 0));
     }
   };
 
@@ -418,6 +429,8 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
       pagoEm: pago ? (order?.pagoEm || Date.now()) : undefined,
       obs: obs.trim() || undefined,
       itens: cleanedItems,
+      adicionais: adicionais.trim() || undefined,
+      valorAdicionais: valorAdicionais > 0 ? valorAdicionais : undefined,
       criadoEm: order?.criadoEm || Date.now(),
     };
 
@@ -747,6 +760,50 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
             </button>
           </div>
 
+          {/* Adicionais & Personalizações */}
+          <div className="p-3.5 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/60 rounded-2xl space-y-2.5">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <h4 className="text-xs font-bold uppercase tracking-wider text-amber-950 dark:text-amber-200 font-display">
+                Itens Adicionais & Personalizações (Opcional)
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                  Descrição dos Adicionais
+                </label>
+                <input
+                  type="text"
+                  value={adicionais}
+                  onChange={(e) => setAdicionais(e.target.value)}
+                  placeholder="Ex: Topo com nome, morangos extras, fita presente..."
+                  className="w-full px-3 py-2 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-xl text-xs sm:text-sm font-medium focus:border-amber-500 transition-colors min-h-[42px]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-stone-700 dark:text-stone-300 mb-1 flex items-center justify-between">
+                  <span>Preço Adicionais</span>
+                  {valorAdicionais > 0 && (
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                      + Soma
+                    </span>
+                  )}
+                </label>
+                <NumericInput
+                  value={valorAdicionais}
+                  onChange={handleValorAdicionaisChange}
+                  placeholder="0,00"
+                  prefix="R$"
+                  min={0}
+                  className="px-3 py-2 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-xs sm:text-sm font-bold tabular-nums text-right focus:border-amber-500 min-h-[42px]"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Data e Horário de Entrega */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-stone-100 dark:border-stone-800">
             <div>
@@ -785,15 +842,15 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
                   <DollarSign className="w-3.5 h-3.5 text-stone-400" />
                   <span>Valor Total da Encomenda (R$)</span>
                 </label>
-                {itemsSum > 0 && Math.abs(valor - itemsSum) > 0.01 && (
+                {totalCalculado > 0 && Math.abs(valor - totalCalculado) > 0.01 && (
                   <button
                     type="button"
-                    onClick={() => setValor(itemsSum)}
+                    onClick={() => setValor(totalCalculado)}
                     className="text-[10px] font-bold text-amber-700 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
-                    title="Usar soma calculada dos bolos"
+                    title="Usar soma calculada dos bolos e adicionais"
                   >
                     <RotateCcw className="w-2.5 h-2.5" />
-                    <span>Usar soma ({formatCurrency(itemsSum)})</span>
+                    <span>Usar soma ({formatCurrency(totalCalculado)})</span>
                   </button>
                 )}
               </div>
@@ -805,9 +862,12 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
                 min={0}
                 className="px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-bold tabular-nums text-right focus:bg-white dark:focus:bg-stone-800 min-h-[42px]"
               />
-              {itemsSum > 0 && (
+              {totalCalculado > 0 && (
                 <span className="text-[11px] text-stone-500 dark:text-stone-400 block mt-1">
-                  Soma dos bolos selecionados: <strong>{formatCurrency(itemsSum)}</strong>
+                  Soma dos bolos: <strong>{formatCurrency(itemsSum)}</strong>
+                  {valorAdicionais > 0 ? (
+                    <> + Adicionais: <strong>{formatCurrency(valorAdicionais)}</strong> = <strong>{formatCurrency(totalCalculado)}</strong></>
+                  ) : null}
                 </span>
               )}
             </div>

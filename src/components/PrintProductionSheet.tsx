@@ -121,14 +121,22 @@ export const PrintProductionSheet: React.FC<PrintProductionSheetProps> = ({
                 <tbody className="divide-y divide-stone-200">
                   {(recipe.items || []).map((it, idx) => {
                     const ing = ingredients.find((i) => i.id === it.ing);
+                    const ingName = ing?.name || 'Ingrediente';
+                    const isBanana = ingName.toLowerCase().includes('banana');
+                    let displayQty = it.qty;
+                    let displayUnit = it.unit;
+                    if (isBanana && it.unit === 'un') {
+                      displayUnit = 'g';
+                      if (displayQty < 15) displayQty = Math.round(displayQty * 120);
+                    }
                     const cost = getItemCost(it, ingredients);
                     return (
                       <tr key={idx}>
                         <td className="py-2 px-3 font-medium text-stone-900">
-                          {ing?.name || 'Ingrediente'}
+                          {ingName}
                         </td>
                         <td className="py-2 px-3 text-right tabular-nums font-semibold">
-                          {formatNumber(it.qty)} {it.unit}
+                          {formatNumber(displayQty)} {displayUnit}
                         </td>
                         <td className="py-2 px-3 text-right tabular-nums text-stone-600">
                           {formatCurrency(cost)}

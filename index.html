@@ -20,6 +20,59 @@
         } catch (err) {}
 
         try {
+          if (typeof window.WebSocket !== 'undefined') {
+            var _OrigWebSocket = window.WebSocket;
+            window.WebSocket = function(url, protocols) {
+              if (
+                protocols === 'vite-hmr' ||
+                (typeof url === 'string' && (url.indexOf('vite-hmr') !== -1 || url.indexOf('/@vite') !== -1))
+              ) {
+                var listeners = {};
+                var fakeWs = {
+                  readyState: 1, // OPEN
+                  bufferedAmount: 0,
+                  extensions: '',
+                  protocol: 'vite-hmr',
+                  url: url,
+                  onopen: null,
+                  onclose: null,
+                  onerror: null,
+                  onmessage: null,
+                  addEventListener: function(type, fn) {
+                    listeners[type] = listeners[type] || [];
+                    listeners[type].push(fn);
+                    if (type === 'open') {
+                      setTimeout(function() {
+                        try {
+                          fn({ type: 'open' });
+                        } catch (e) {}
+                      }, 0);
+                    }
+                  },
+                  removeEventListener: function(type, fn) {
+                    if (listeners[type]) {
+                      listeners[type] = listeners[type].filter(function(f) { return f !== fn; });
+                    }
+                  },
+                  dispatchEvent: function() { return true; },
+                  send: function() {},
+                  close: function() {
+                    fakeWs.readyState = 3; // CLOSED
+                  }
+                };
+                return fakeWs;
+              }
+              return new _OrigWebSocket(url, protocols);
+            };
+            window.WebSocket.prototype = _OrigWebSocket.prototype;
+            window.WebSocket.CONNECTING = 0;
+            window.WebSocket.OPEN = 1;
+            window.WebSocket.CLOSING = 2;
+            window.WebSocket.CLOSED = 3;
+          }
+        } catch (err) {}
+
+        try {
           var _origConsoleError = console.error;
           console.error = function() {
             var args = Array.prototype.slice.call(arguments);

@@ -233,6 +233,19 @@ export const OrderPreviewModal: React.FC<OrderPreviewModalProps> = ({
                   </div>
                 ))}
               </div>
+
+              {order.adicionais && (
+                <div className="flex items-center justify-between text-xs sm:text-sm bg-[#faf6f0] p-2.5 rounded-xl border border-[#ecdcc8] mt-2">
+                  <span className="font-semibold text-[#6d3e14]">
+                    ✨ Adicionais: {order.adicionais}
+                  </span>
+                  {order.valorAdicionais && order.valorAdicionais > 0 ? (
+                    <strong className="font-bold text-[#55443c] tabular-nums">
+                      +{formatCurrency(order.valorAdicionais)}
+                    </strong>
+                  ) : null}
+                </div>
+              )}
             </div>
 
             {/* Separator line */}

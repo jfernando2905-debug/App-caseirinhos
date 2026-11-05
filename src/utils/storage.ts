@@ -1,4 +1,4 @@
-import { AppData, Ingredient, Recipe, AppSettings } from '../types';
+import { AppData, Ingredient, Recipe, AppSettings, Unit } from '../types';
 
 export const STORAGE_KEY = 'custo-receitas-v1';
 
@@ -70,6 +70,15 @@ export function getInitialSeedData(): AppData {
       size: 1,
       unit: 'kg',
       hist: [{ d: now - 3 * day, price: 6.5, size: 1, unit: 'kg' }],
+      category: 'Hortifrúti',
+    },
+    {
+      id: 'ing_banana',
+      name: 'Banana nanica/prata',
+      price: 5.5,
+      size: 1,
+      unit: 'kg',
+      hist: [{ d: now - 3 * day, price: 5.5, size: 1, unit: 'kg' }],
       category: 'Hortifrúti',
     },
     {
@@ -335,24 +344,74 @@ export function getInitialSeedData(): AppData {
   };
 }
 
+export function sanitizeAppData(data: AppData): AppData {
+  // 1. Sanitize ingredients (ensure Banana is in kg or g, not un)
+  const sanitizedIngs = (data.ings || []).map((ing) => {
+    const isBanana = ing.name.toLowerCase().includes('banana');
+    if (isBanana && ing.unit === 'un') {
+      return {
+        ...ing,
+        unit: (ing.size > 10 ? 'g' : 'kg') as Unit,
+        category: ing.category || 'Hortifrúti',
+      };
+    }
+    return ing;
+  });
+
+  // 2. Sanitize recipes (ensure Banana items in recipes use g instead of un)
+  const sanitizedRecs = (data.recs || []).map((rec) => {
+    const sanitizedItems = (rec.items || []).map((item) => {
+      const matchedIng = sanitizedIngs.find((i) => i.id === item.ing);
+      const isBanana =
+        (matchedIng && matchedIng.name.toLowerCase().includes('banana')) ||
+        (item as any).nome?.toLowerCase()?.includes('banana') ||
+        (item as any).name?.toLowerCase()?.includes('banana');
+
+      if (isBanana && item.unit === 'un') {
+        // If qty is 15 or higher (e.g. 360), it was always meant to be in grams (360 g)
+        // If qty is small (e.g. 3 bananas), convert to grams (3 * 120 = 360 g)
+        const newQty = item.qty >= 15 ? item.qty : Math.round(item.qty * 120);
+        return {
+          ...item,
+          qty: newQty,
+          unit: 'g' as Unit,
+        };
+      }
+      return item;
+    });
+
+    return {
+      ...rec,
+      items: sanitizedItems,
+    };
+  });
+
+  return {
+    ...data,
+    ings: sanitizedIngs,
+    recs: sanitizedRecs,
+  };
+}
+
 export function loadAppData(): AppData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      const initial = getInitialSeedData();
+      const initial = sanitizeAppData(getInitialSeedData());
       saveAppData(initial);
       return initial;
     }
     const parsed = JSON.parse(raw);
-    return {
+    const loadedData: AppData = {
       ings: Array.isArray(parsed.ings) ? parsed.ings : [],
       recs: Array.isArray(parsed.recs) ? parsed.recs : [],
       orders: Array.isArray(parsed.orders) ? parsed.orders : [],
       cfg: { ...DEFAULT_CONFIG, ...(parsed.cfg || {}) },
     };
+    return sanitizeAppData(loadedData);
   } catch (err) {
     console.error('Failed to load storage:', err);
-    return getInitialSeedData();
+    return sanitizeAppData(getInitialSeedData());
   }
 }
 

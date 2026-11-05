@@ -64,11 +64,13 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
 
   const openEditModal = (ing: Ingredient) => {
     setIsNew(false);
+    const isBanana = ing.name.toLowerCase().includes('banana');
+    const safeUnit = isBanana && ing.unit === 'un' ? (ing.size > 10 ? 'g' : 'kg') : ing.unit;
     setFormName(ing.name);
     setFormPrice(ing.price || 0);
     setFormSize(ing.size || 1);
-    setFormUnit(ing.unit);
-    setFormCategory(ing.category || '');
+    setFormUnit(safeUnit);
+    setFormCategory(ing.category || (isBanana ? 'Hortifrúti' : ''));
     setFormError('');
     setEditingIngredient(ing);
   };
@@ -84,6 +86,12 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
       return;
     }
 
+    const isBanana = formName.toLowerCase().includes('banana');
+    let finalUnit = formUnit;
+    if (isBanana && formUnit === 'un') {
+      finalUnit = formSize > 10 ? 'g' : 'kg';
+    }
+
     const currentHistory = editingIngredient?.hist ? [...editingIngredient.hist] : [];
     const lastHist = currentHistory[currentHistory.length - 1];
 
@@ -92,13 +100,13 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
       !lastHist ||
       lastHist.price !== formPrice ||
       lastHist.size !== formSize ||
-      lastHist.unit !== formUnit
+      lastHist.unit !== finalUnit
     ) {
       currentHistory.push({
         d: Date.now(),
         price: formPrice,
         size: formSize,
-        unit: formUnit,
+        unit: finalUnit,
       });
     }
 
@@ -107,9 +115,9 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
       name: formName.trim(),
       price: Math.max(formPrice, 0),
       size: Math.max(formSize, 0.001),
-      unit: formUnit,
+      unit: finalUnit,
       hist: currentHistory,
-      category: formCategory.trim() || undefined,
+      category: formCategory.trim() || (isBanana ? 'Hortifrúti' : undefined),
     };
 
     onSaveIngredient(updatedIng);
@@ -331,7 +339,14 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
                 <input
                   type="text"
                   value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFormName(val);
+                    if (val.toLowerCase().includes('banana')) {
+                      if (formUnit === 'un') setFormUnit('kg');
+                      if (!formCategory) setFormCategory('Hortifrúti');
+                    }
+                  }}
                   placeholder="Ex: Farinha de trigo especial"
                   className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-xl text-sm font-medium focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500 transition-colors min-h-[44px]"
                 />

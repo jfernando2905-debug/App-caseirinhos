@@ -100,6 +100,10 @@ export const formatOrderWhatsApp = (order: Order): string => {
   }
 
   text += `Status: ${order.status.toUpperCase()}\n`;
+  if (order.adicionais && order.adicionais.trim()) {
+    const addPrice = order.valorAdicionais ? ` (${formatCurrency(order.valorAdicionais)})` : '';
+    text += `Adicionais: ${order.adicionais.trim()}${addPrice}\n`;
+  }
   if (order.obs && order.obs.trim()) {
     text += `Obs: ${order.obs.trim()}\n`;
   }
@@ -117,8 +121,11 @@ export const formatPaymentReminderWhatsApp = (order: Order): string => {
   let text = `Olá, ${order.cliente}! Tudo bem? 😊\n\n`;
   text += `Passando para enviar o lembrete da sua encomenda da *Caseirinhos Fer&Dre*:\n`;
   text += `📅 Data de entrega: ${dataFormatada}${order.hora ? ` às ${order.hora}` : ''}\n`;
-  text += `🎂 Pedido: ${order.itens.map((it) => formatItemText(it)).join(', ')}\n\n`;
-  text += `💰 *Valor restante a acertar:* ${restanteStr}\n\n`;
+  text += `🎂 Pedido: ${order.itens.map((it) => formatItemText(it)).join(', ')}\n`;
+  if (order.adicionais && order.adicionais.trim()) {
+    text += `✨ Adicionais: ${order.adicionais.trim()}\n`;
+  }
+  text += `\n💰 *Valor restante a acertar:* ${restanteStr}\n\n`;
   text += `🔑 *Chave Pix para pagamento:*\n`;
   text += `Tipo: CPF\n`;
   text += `Chave: ${PIX_CONFIG.chave} (${PIX_CONFIG.chaveFormatada})\n`;
@@ -249,6 +256,11 @@ export const generateOrderPdf = (order: Order): void => {
     doc.text(lines, margin + 4, y);
     y += lines.length * 5 + 1;
   });
+
+  if (order.adicionais && order.adicionais.trim()) {
+    const addPrice = order.valorAdicionais ? ` (${formatCurrency(order.valorAdicionais)})` : '';
+    drawField('Adicionais:', `${order.adicionais.trim()}${addPrice}`, true);
+  }
 
   y += 2;
   doc.line(margin, y, margin + contentWidth, y);
@@ -420,6 +432,9 @@ export const renderOrderToCanvas = (order: Order, targetWidth = 800): HTMLCanvas
     const lines = wrapCanvasText(mCtx, textItem, contentWidth - 110);
     calcY += Math.max(26, lines.length * 22 + 6);
   });
+  if (order.adicionais) {
+    calcY += 32;
+  }
   calcY += 26; // Separator + margin
 
   // Financials
@@ -559,6 +574,11 @@ export const renderOrderToCanvas = (order: Order, targetWidth = 800): HTMLCanvas
 
     y += Math.max(26, lines.length * 22 + 6);
   });
+
+  if (order.adicionais && order.adicionais.trim()) {
+    const addPrice = order.valorAdicionais ? ` (${formatCurrency(order.valorAdicionais)})` : '';
+    drawField('Adicionais:', `${order.adicionais.trim()}${addPrice}`, true);
+  }
 
   // 5. Separator Line
   y += 8;

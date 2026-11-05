@@ -175,23 +175,36 @@ export const PasteRecipeModal: React.FC<PasteRecipeModalProps> = ({
       // 3. If genuinely new, create it
       if (!matched) {
         const newId = uid();
+        const isBanana = it.nome.toLowerCase().includes('banana');
+        const unit = isBanana && it.unidade === 'un' ? 'kg' : it.unidade;
+        const size = unit === 'kg' ? 1 : (unit === 'un' ? 1 : 1000);
         const newIng: Ingredient = {
           id: newId,
           name: it.nome,
           price: 0,
-          size: it.unidade === 'un' ? 1 : 1000,
-          unit: it.unidade,
+          size,
+          unit,
           hist: [],
-          category: 'Receita Importada',
+          category: isBanana ? 'Hortifrúti' : 'Receita Importada',
         };
         newIngredientsCreated.push(newIng);
         ingredientId = newId;
       }
 
+      const isBanana = it.nome.toLowerCase().includes('banana');
+      let itemUnit = it.unidade;
+      let itemQty = it.qtd || 100;
+      if (isBanana && itemUnit === 'un') {
+        itemUnit = 'g';
+        if (itemQty < 15) {
+          itemQty = Math.round(itemQty * 120);
+        }
+      }
+
       return {
         ing: ingredientId,
-        qty: it.qtd || 100,
-        unit: it.unidade,
+        qty: itemQty,
+        unit: itemUnit,
       };
     });
 

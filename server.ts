@@ -64,6 +64,7 @@ Para CADA ingrediente mencionado na receita:
    - "fermento em pó", "fermento químico" -> vincule ao fermento cadastrado.
    - "cacau em pó", "chocolate em pó", "nescau" -> vincule ao correspondente cadastrado.
    - "leite condensado", "creme de leite", "óleo" -> vincule ao correspondente cadastrado.
+   - "banana", "bananas", "banana nanica", "banana prata" -> SEMPRE use unidade "g" (gramas). NUNCA retorne "un" para banana! Se a receita mencionar "3 bananas", converta para 360 g (1 banana média ≈ 120 g). Se mencionar quantidade numérica como 360 de banana, use 360 g.
 
 2. QUANDO ENCONTRAR CORRESPONDÊNCIA NA LISTA DE CADASTRADOS:
    - "id": OBRIGATORIAMENTE preencha com o "id" do ingrediente existente.
@@ -73,7 +74,7 @@ Para CADA ingrediente mencionado na receita:
 3. SOMENTE SE FOR UM INGREDIENTE TOTALMENTE INÉDITO (sem similar na lista):
    - "id": null
    - "nome": nome padronizado no singular (ex: "Noz-moscada", "Canela em pó").
-   - "unidade": "g", "ml" ou "un".
+   - "unidade": "g", "ml" ou "un" (frutas e pesados devem ser sempre "g").
 
 4. CONVERSÕES OBRIGATÓRIAS de medidas caseiras:
    - 1 xícara de farinha de trigo ≈ 120 g
@@ -90,6 +91,7 @@ Para CADA ingrediente mencionado na receita:
    - 1 lata / caixa de leite condensado ≈ 395 g
    - 1 caixa de creme de leite ≈ 200 g
    - 1 vidro de leite de coco ≈ 200 ml
+   - 1 banana média ≈ 120 g (3 bananas = 360 g; NUNCA use "un" para banana)
    - Ovos: sempre quantidade em unidades ("un")
    - kg convertidos para g (1 kg = 1000 g), L para ml (1 L = 1000 ml)
 

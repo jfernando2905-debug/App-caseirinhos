@@ -193,10 +193,17 @@ export function generateRecipePdf(
     doc.setFontSize(8.5);
     doc.setTextColor(30, 25, 20);
     const ingName = ing ? ing.name : 'Ingrediente não encontrado';
+    const isBanana = ingName.toLowerCase().includes('banana');
+    let displayQty = it.qty;
+    let displayUnit = it.unit;
+    if (isBanana && it.unit === 'un') {
+      displayUnit = 'g';
+      if (displayQty < 15) displayQty = Math.round(displayQty * 120);
+    }
     doc.text(doc.splitTextToSize(ingName, 78)[0], colX.ing, y + 4.2);
 
     doc.setFont('helvetica', 'bold');
-    doc.text(`${formatNumber(it.qty)} ${it.unit}`, colX.qty, y + 4.2);
+    doc.text(`${formatNumber(displayQty)} ${displayUnit}`, colX.qty, y + 4.2);
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(110, 100, 95);

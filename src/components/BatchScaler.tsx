@@ -17,8 +17,15 @@ import {
   Package,
   Clock,
   Filter,
+  Pencil,
+  Plus,
+  Minus,
+  X,
+  Save,
+  History,
+  CheckCircle2,
 } from 'lucide-react';
-import { Recipe, Ingredient, AppSettings, Order, Unit } from '../types';
+import { Recipe, Ingredient, AppSettings, Order, Unit, PriceHistoryEntry } from '../types';
 import {
   scaleBatch,
   formatCurrency,
@@ -39,6 +46,7 @@ interface BatchScalerProps {
   cfg: AppSettings;
   initialRecipeId?: string;
   onOpenRecipe: (recipe: Recipe) => void;
+  onSaveIngredient?: (ingredient: Ingredient) => void;
 }
 
 type ScalerMode = 'manual' | 'orders' | 'shopping';
@@ -74,6 +82,7 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
   orders = [],
   cfg,
   initialRecipeId,
+  onSaveIngredient,
 }) => {
   // Mode switcher
   const [mode, setMode] = useState<ScalerMode>('orders');
@@ -96,6 +105,15 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
   const [purchasedIngredients, setPurchasedIngredients] = useState<Record<string, boolean>>({});
   const [copiedToast, setCopiedToast] = useState<boolean>(false);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+
+  // Shopping list customization & editing state
+  const [customPackageCounts, setCustomPackageCounts] = useState<Record<string, number>>({});
+  const [editingItem, setEditingItem] = useState<AggregatedIngredient | null>(null);
+  const [editPrice, setEditPrice] = useState<number>(0);
+  const [editSize, setEditSize] = useState<number>(0);
+  const [editUnit, setEditUnit] = useState<Unit>('g');
+  const [editPackagesCount, setEditPackagesCount] = useState<number>(1);
+  const [editSuccessMsg, setEditSuccessMsg] = useState<string>('');
 
   // Open orders list (not delivered)
   const openOrders = useMemo(() => {
@@ -273,9 +291,21 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
           const ingId = rItem.ing || (ing ? ing.id : `unknown-${rItem.ing}`);
           const ingName = ing ? ing.name : 'Ingrediente Desconhecido';
           const ingCategory = ing?.category || 'Geral';
-          const unitFactor = UNIT_FACTORS[rItem.unit] || 1;
-          const baseUnit = UNIT_BASE[rItem.unit] || 'g';
-          const addedBaseQty = (rItem.qty || 0) * itemFactor * unitFactor;
+
+          // Safeguard: Banana in confectionery is weighed in grams (g / kg), never large quantities of 'un'
+          let effectiveUnit = rItem.unit;
+          let effectiveQty = rItem.qty || 0;
+          const isBanana = ingName.toLowerCase().includes('banana') || (ing && ing.name.toLowerCase().includes('banana'));
+          if (isBanana && effectiveUnit === 'un') {
+            effectiveUnit = 'g';
+            if (effectiveQty < 15) {
+              effectiveQty = Math.round(effectiveQty * 120);
+            }
+          }
+
+          const unitFactor = UNIT_FACTORS[effectiveUnit] || 1;
+          const baseUnit = UNIT_BASE[effectiveUnit] || 'g';
+          const addedBaseQty = effectiveQty * itemFactor * unitFactor;
 
           if (!ingrMap.has(ingId)) {
             ingrMap.set(ingId, {
@@ -303,7 +333,7 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
         const proportionalCost = uPrice * data.baseQty;
 
         // Commercial packages needed
-        let packagesNeeded = 1;
+        let defaultPackagesNeeded = 1;
         let packageCost = 0;
         let surplusBase = 0;
 
@@ -311,10 +341,20 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
           const packFactor = UNIT_FACTORS[data.ing.unit] || 1;
           const packBaseSize = data.ing.size * packFactor;
           if (packBaseSize > 0) {
-            packagesNeeded = Math.ceil(data.baseQty / packBaseSize);
-            packageCost = packagesNeeded * (data.ing.price || 0);
-            surplusBase = packagesNeeded * packBaseSize - data.baseQty;
+            defaultPackagesNeeded = Math.ceil(data.baseQty / packBaseSize);
           }
+        }
+
+        const packagesNeeded =
+          customPackageCounts[id] !== undefined
+            ? customPackageCounts[id]
+            : defaultPackagesNeeded;
+
+        if (data.ing && data.ing.size > 0) {
+          const packFactor = UNIT_FACTORS[data.ing.unit] || 1;
+          const packBaseSize = data.ing.size * packFactor;
+          packageCost = packagesNeeded * (data.ing.price || 0);
+          surplusBase = Math.max(0, packagesNeeded * packBaseSize - data.baseQty);
         } else {
           packageCost = proportionalCost;
         }
@@ -372,7 +412,7 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
         totalProfit,
       },
     };
-  }, [filteredOpenOrders, activeOrderSelection, recipes, ingredients, cfg]);
+  }, [filteredOpenOrders, activeOrderSelection, recipes, ingredients, cfg, customPackageCounts]);
 
   // Shopping list data source: open orders or manual batch
   const shoppingItems = useMemo((): AggregatedIngredient[] => {
@@ -384,12 +424,22 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
 
     return manualBatchResult.ingredients.map((item, idx) => {
       const ing = item.ing;
-      const baseUnit = UNIT_BASE[item.unit] || 'g';
-      const factor = UNIT_FACTORS[item.unit] || 1;
-      const baseQty = item.scaledQty * factor;
+      let effectiveUnit = item.unit;
+      let effectiveQty = item.scaledQty;
+      const isBanana = item.name.toLowerCase().includes('banana') || (ing && ing.name.toLowerCase().includes('banana'));
+      if (isBanana && effectiveUnit === 'un') {
+        effectiveUnit = 'g';
+        if (effectiveQty < 15) {
+          effectiveQty = Math.round(effectiveQty * 120);
+        }
+      }
+      const baseUnit = UNIT_BASE[effectiveUnit] || 'g';
+      const factor = UNIT_FACTORS[effectiveUnit] || 1;
+      const baseQty = effectiveQty * factor;
       const proportionalCost = item.cost;
 
-      let packagesNeeded = 1;
+      const itemId = ing?.id || `manual-${idx}`;
+      let defaultPackagesNeeded = 1;
       let packageCost = 0;
       let surplusBase = 0;
 
@@ -397,18 +447,28 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
         const packFactor = UNIT_FACTORS[ing.unit] || 1;
         const packBaseSize = ing.size * packFactor;
         if (packBaseSize > 0) {
-          packagesNeeded = Math.ceil(baseQty / packBaseSize);
-          packageCost = packagesNeeded * (ing.price || 0);
-          surplusBase = packagesNeeded * packBaseSize - baseQty;
+          defaultPackagesNeeded = Math.ceil(baseQty / packBaseSize);
         }
+      }
+
+      const packagesNeeded =
+        customPackageCounts[itemId] !== undefined
+          ? customPackageCounts[itemId]
+          : defaultPackagesNeeded;
+
+      if (ing && ing.size > 0) {
+        const packFactor = UNIT_FACTORS[ing.unit] || 1;
+        const packBaseSize = ing.size * packFactor;
+        packageCost = packagesNeeded * (ing.price || 0);
+        surplusBase = Math.max(0, packagesNeeded * packBaseSize - baseQty);
       } else {
         packageCost = proportionalCost;
       }
 
       return {
-        id: ing?.id || `manual-${idx}`,
+        id: itemId,
         name: item.name,
-        category: ing?.category || 'Geral',
+        category: ing?.category || (isBanana ? 'Hortifrúti' : 'Geral'),
         baseQty,
         baseUnit,
         proportionalCost,
@@ -419,11 +479,14 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
         usedIn: [{ recipeName: manualBatchResult.recipe.name, count: safeCakeCount }],
       };
     });
-  }, [shoppingSource, aggregatedIngredients, manualBatchResult, safeCakeCount]);
+  }, [shoppingSource, aggregatedIngredients, manualBatchResult, safeCakeCount, customPackageCounts]);
 
-  // Format base quantities into friendly strings (e.g., 2,4 kg (2.400 g))
-  const formatFriendlyQty = (baseQty: number, baseUnit: 'g' | 'ml' | 'un') => {
-    if (baseUnit === 'g') {
+  // Format base quantities into friendly strings (e.g., 2,4 kg (2.400 g) or 360 g)
+  const formatFriendlyQty = (baseQty: number, baseUnit: 'g' | 'ml' | 'un', itemName?: string) => {
+    const isBanana = itemName ? itemName.toLowerCase().includes('banana') : false;
+
+    // If unit is grams OR if banana with large quantity that was 'un'
+    if (baseUnit === 'g' || (isBanana && baseUnit === 'un' && baseQty >= 15)) {
       if (baseQty >= 1000) {
         const kg = baseQty / 1000;
         return `${formatNumber(kg, 2)} kg (${formatNumber(Math.round(baseQty))} g)`;
@@ -436,6 +499,10 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
         return `${formatNumber(l, 2)} L (${formatNumber(Math.round(baseQty))} ml)`;
       }
       return `${formatNumber(Math.round(baseQty))} ml`;
+    }
+    if (isBanana && baseUnit === 'un') {
+      const grams = baseQty * 120;
+      return `${formatNumber(Math.round(grams))} g (${formatNumber(baseQty)} un)`;
     }
     return `${formatNumber(Math.ceil(baseQty))} un`;
   };
@@ -453,6 +520,74 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
       ...prev,
       [id]: !prev[id],
     }));
+  };
+
+  // Open edit modal for a shopping item
+  const handleOpenEditItem = (item: AggregatedIngredient) => {
+    const isBanana = item.name.toLowerCase().includes('banana') || (item.ing?.name || '').toLowerCase().includes('banana');
+    setEditingItem(item);
+    setEditPrice(item.ing?.price || 0);
+    setEditSize(item.ing?.size || (isBanana ? 1 : 1000));
+    let initialUnit = item.ing?.unit || (isBanana ? 'kg' : (item.baseUnit as Unit));
+    if (isBanana && initialUnit === 'un') initialUnit = 'kg';
+    setEditUnit(initialUnit);
+    setEditPackagesCount(item.packagesNeeded);
+    setEditSuccessMsg('');
+  };
+
+  // Step packages count up or down
+  const handleStepPackage = (e: React.MouseEvent, itemId: string, currentVal: number, delta: number) => {
+    e.stopPropagation();
+    const nextVal = Math.max(1, currentVal + delta);
+    setCustomPackageCounts((prev) => ({
+      ...prev,
+      [itemId]: nextVal,
+    }));
+  };
+
+  // Save changes to ingredient (price, size, unit, hist) and update product costs
+  const handleSaveItemEdit = () => {
+    if (!editingItem) return;
+    const isBanana = editingItem.name.toLowerCase().includes('banana') || (editingItem.ing?.name || '').toLowerCase().includes('banana');
+    const finalUnit = isBanana && editUnit === 'un' ? 'kg' : editUnit;
+
+    const targetIng = editingItem.ing || ingredients.find((i) => i.id === editingItem.id || i.name.toLowerCase() === editingItem.name.toLowerCase());
+
+    const now = Date.now();
+    const histEntry: PriceHistoryEntry = {
+      d: now,
+      price: editPrice,
+      size: editSize,
+      unit: finalUnit,
+    };
+
+    const updatedIng: Ingredient = {
+      ...(targetIng || {
+        id: editingItem.id.startsWith('manual-') ? `ing-${now}` : editingItem.id,
+        name: editingItem.name,
+        category: editingItem.category || (isBanana ? 'Hortifrúti' : 'Geral'),
+        hist: [],
+      }),
+      price: editPrice,
+      size: editSize,
+      unit: finalUnit,
+      hist: [...(targetIng?.hist || []), histEntry],
+    };
+
+    if (onSaveIngredient) {
+      onSaveIngredient(updatedIng);
+    }
+
+    setCustomPackageCounts((prev) => ({
+      ...prev,
+      [editingItem.id]: Math.max(1, editPackagesCount),
+    }));
+
+    setEditSuccessMsg('Preço e embalagem atualizados! Custos recalculados.');
+    setTimeout(() => {
+      setEditingItem(null);
+      setEditSuccessMsg('');
+    }, 700);
   };
 
   // Filter shopping items by category
@@ -499,7 +634,7 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
       text += `📌 *${cat.toUpperCase()}*\n`;
       items.forEach((item) => {
         const check = purchasedIngredients[item.id] ? '✅' : '⬜';
-        const friendlyQty = formatFriendlyQty(item.baseQty, item.baseUnit);
+        const friendlyQty = formatFriendlyQty(item.baseQty, item.baseUnit, item.name);
         let packInfo = '';
         if (item.ing && item.ing.size > 0) {
           packInfo = ` 👉 Comprar: *${item.packagesNeeded}×* de ${item.ing.size} ${item.ing.unit}`;
@@ -986,7 +1121,7 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
                           {item.category || 'Geral'}
                         </td>
                         <td className="py-2.5 px-3 text-right font-bold text-amber-950 dark:text-amber-300 tabular-nums">
-                          {formatFriendlyQty(item.baseQty, item.baseUnit)}
+                          {formatFriendlyQty(item.baseQty, item.baseUnit, item.name)}
                         </td>
                         <td className="py-2.5 px-3 text-right text-stone-600 dark:text-stone-400 tabular-nums">
                           {formatCurrency(item.proportionalCost)}
@@ -1262,39 +1397,82 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
 
                           <div className="text-xs text-stone-500 dark:text-stone-400 mt-1 flex items-center gap-2 flex-wrap">
                             <span>
-                              Necessário na receita: <strong>{formatFriendlyQty(item.baseQty, item.baseUnit)}</strong>
+                              Necessário na receita: <strong>{formatFriendlyQty(item.baseQty, item.baseUnit, item.name)}</strong>
                             </span>
                             {item.surplusBase > 0 && hasPackInfo && (
                               <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
-                                (Sobra estimada: {formatFriendlyQty(item.surplusBase, item.baseUnit)})
+                                (Sobra estimada: {formatFriendlyQty(item.surplusBase, item.baseUnit, item.name)})
                               </span>
                             )}
                           </div>
                         </div>
                       </div>
 
-                      {/* Right: Package Calculation & Cost */}
-                      <div className="flex items-center justify-between sm:justify-end gap-4 pl-8 sm:pl-0">
+                      {/* Right: Package Calculation, Stepper, Cost & Edit button */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between sm:justify-end gap-2.5 pl-8 sm:pl-0">
                         {hasPackInfo ? (
-                          <div className="text-left sm:text-right">
-                            <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-300">
-                              <Package className="w-3.5 h-3.5" />
-                              Comprar {item.packagesNeeded}× ({item.ing?.size} {item.ing?.unit})
-                            </span>
-                            <span className="block text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 tabular-nums">
-                              {formatCurrency(item.packageCost)} no total
-                            </span>
+                          <div className="flex items-center gap-2">
+                            {/* Stepper for packagesNeeded */}
+                            <div
+                              className="flex items-center bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg p-0.5"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                onClick={(e) => handleStepPackage(e, item.id, item.packagesNeeded, -1)}
+                                disabled={item.packagesNeeded <= 1}
+                                className="w-6 h-6 flex items-center justify-center rounded text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                title="Diminuir embalagens"
+                              >
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span className="px-2 text-xs font-bold text-stone-800 dark:text-stone-200 tabular-nums">
+                                {item.packagesNeeded}×
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => handleStepPackage(e, item.id, item.packagesNeeded, 1)}
+                                className="w-6 h-6 flex items-center justify-center rounded text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
+                                title="Aumentar embalagens"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+
+                            <div className="text-left sm:text-right">
+                              <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-300">
+                                <Package className="w-3 h-3" />
+                                {item.ing?.size} {item.ing?.unit}
+                              </span>
+                              <span className="block text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 tabular-nums">
+                                {formatCurrency(item.packageCost)} ({formatCurrency(item.ing?.price || 0)}/emb)
+                              </span>
+                            </div>
                           </div>
                         ) : (
                           <div className="text-left sm:text-right">
                             <span className="text-xs font-bold text-stone-700 dark:text-stone-300">
-                              {formatFriendlyQty(item.baseQty, item.baseUnit)}
+                              {formatFriendlyQty(item.baseQty, item.baseUnit, item.name)}
                             </span>
                             <span className="block text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 tabular-nums">
                               {formatCurrency(item.proportionalCost)}
                             </span>
                           </div>
                         )}
+
+                        {/* Edit Price / Packaging Button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEditItem(item);
+                          }}
+                          className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-stone-50 hover:bg-amber-50 dark:bg-stone-800 dark:hover:bg-amber-950/40 text-stone-700 hover:text-amber-800 dark:text-stone-300 dark:hover:text-amber-300 text-xs font-semibold transition-colors"
+                          title="Alterar preço, tamanho da embalagem ou quantidade"
+                        >
+                          <Pencil className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                          <span>Ajustar</span>
+                        </button>
                       </div>
                     </div>
                   );
@@ -1302,6 +1480,194 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
               </div>
             )}
           </div>
+
+          {/* Quick Edit Modal for Shopping List Item */}
+          {editingItem && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs"
+              onClick={() => setEditingItem(null)}
+            >
+              <div
+                className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-start justify-between gap-3 border-b border-stone-100 dark:border-stone-800 pb-3">
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                      Ajuste na Lista de Compras
+                    </span>
+                    <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 font-display">
+                      {editingItem.name}
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditingItem(null)}
+                    className="p-1 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 rounded-xl text-xs text-amber-900 dark:text-amber-300 space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <History className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
+                    <span>Impacto nos Custos & Histórico de Preços</span>
+                  </div>
+                  <p className="text-stone-600 dark:text-stone-400 text-[11px]">
+                    Alterar o preço ou tamanho da embalagem atualiza o ingrediente no catálogo, recalcula automaticamente o custo de todas as receitas e fornadas no sistema, e grava o registro no histórico de preços.
+                  </p>
+                </div>
+
+                <div className="space-y-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                      Preço Pago por Embalagem (R$)
+                    </label>
+                    <NumericInput
+                      value={editPrice}
+                      onChange={(val) => setEditPrice(val)}
+                      placeholder="0,00"
+                      min={0}
+                      maxDecimals={2}
+                      prefix="R$"
+                      className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-sm font-bold text-stone-900 dark:text-stone-100 focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                        Tamanho da Embalagem
+                      </label>
+                      <NumericInput
+                        value={editSize}
+                        onChange={(val) => setEditSize(val)}
+                        placeholder="1000"
+                        min={0.01}
+                        maxDecimals={2}
+                        className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-sm font-semibold text-stone-900 dark:text-stone-100 focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                        Unidade da Embalagem
+                      </label>
+                      <select
+                        value={editUnit}
+                        onChange={(e) => setEditUnit(e.target.value as Unit)}
+                        className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-sm font-semibold text-stone-900 dark:text-stone-100 focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500 min-h-[44px]"
+                      >
+                        {(() => {
+                          const isBanana =
+                            editingItem.name.toLowerCase().includes('banana') ||
+                            (editingItem.ing?.name || '').toLowerCase().includes('banana');
+                          if (isBanana) {
+                            return (
+                              <>
+                                <option value="kg">kg (Quilograma)</option>
+                                <option value="g">g (Gramas)</option>
+                              </>
+                            );
+                          }
+                          return (
+                            <>
+                              <option value="g">g (Gramas)</option>
+                              <option value="kg">kg (Quilogramas)</option>
+                              <option value="ml">ml (Mililitros)</option>
+                              <option value="L">L (Litros)</option>
+                              <option value="un">un (Unidades)</option>
+                            </>
+                          );
+                        })()}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                      Quantidade de Embalagens a Comprar
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditPackagesCount((prev) => Math.max(1, prev - 1))}
+                        disabled={editPackagesCount <= 1}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 disabled:opacity-40"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <NumericInput
+                        value={editPackagesCount}
+                        onChange={(val) => setEditPackagesCount(Math.max(1, Math.round(val)))}
+                        placeholder="1"
+                        min={1}
+                        maxDecimals={0}
+                        suffix="emb."
+                        className="flex-1 text-center font-bold px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditPackagesCount((prev) => prev + 1)}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Live Calculation Preview */}
+                  <div className="p-3 bg-stone-50 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-700 rounded-xl space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between text-stone-600 dark:text-stone-400">
+                      <span>Custo Unitário Resultante:</span>
+                      <strong className="text-stone-900 dark:text-stone-100 tabular-nums">
+                        {(() => {
+                          const factor = UNIT_FACTORS[editUnit] || 1;
+                          const baseSize = editSize * factor;
+                          if (baseSize <= 0) return 'R$ 0,00';
+                          const baseUnit = UNIT_BASE[editUnit] || 'g';
+                          const uCost = (editPrice / baseSize) * (baseUnit === 'un' ? 1 : 1000);
+                          const displayUnit = baseUnit === 'un' ? 'un' : baseUnit === 'g' ? 'kg' : 'L';
+                          return `${formatCurrency(uCost)} / ${displayUnit}`;
+                        })()}
+                      </strong>
+                    </div>
+                    <div className="flex items-center justify-between text-stone-600 dark:text-stone-400">
+                      <span>Custo Total Estimado ({editPackagesCount} emb.):</span>
+                      <strong className="text-amber-700 dark:text-amber-400 font-bold tabular-nums">
+                        {formatCurrency(editPrice * editPackagesCount)}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {editSuccessMsg && (
+                    <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300">
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                      <span>{editSuccessMsg}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-stone-100 dark:border-stone-800">
+                  <button
+                    type="button"
+                    onClick={() => setEditingItem(null)}
+                    className="px-4 py-2 text-xs font-semibold text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-colors min-h-[40px]"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveItemEdit}
+                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-xs transition-colors min-h-[40px]"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Salvar no Catálogo & Histórico</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1537,7 +1903,14 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
                           ) : null}
                         </td>
                         <td className="py-2.5 px-3 text-right font-bold text-amber-950 dark:text-amber-300 tabular-nums">
-                          {formatNumber(item.scaledQty, 2)} {item.unit}
+                          {(() => {
+                            const isBanana = item.name.toLowerCase().includes('banana');
+                            if (isBanana && item.unit === 'un') {
+                              const gQty = item.scaledQty >= 15 ? item.scaledQty : Math.round(item.scaledQty * 120);
+                              return `${formatNumber(gQty, 2)} g`;
+                            }
+                            return `${formatNumber(item.scaledQty, 2)} ${item.unit}`;
+                          })()}
                         </td>
                         <td className="py-2.5 px-3 text-right text-stone-600 dark:text-stone-400 tabular-nums">
                           {formatCurrency(item.cost)}

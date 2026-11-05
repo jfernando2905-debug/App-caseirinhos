@@ -87,6 +87,8 @@ export interface Order {
   pagoEm?: number; // Timestamp when payment was completed
   obs?: string;
   itens: OrderItem[];
+  adicionais?: string; // Descrição de itens adicionais (topo de bolo, vela, morangos extras, etc.)
+  valorAdicionais?: number; // Preço/valor dos adicionais (R$)
   criadoEm?: number;
 }
 

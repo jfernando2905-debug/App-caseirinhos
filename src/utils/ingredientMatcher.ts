@@ -66,6 +66,7 @@ const INGREDIENT_CLUSTERS: Record<string, string[]> = {
   queijo: ['queijo', 'queijo ralado', 'parmesao', 'mussarela', 'requeijao', 'cream cheese'],
   sal: ['sal', 'sal refinado', 'sal marinho', 'pitada de sal'],
   canela: ['canela', 'canela em po', 'canela po'],
+  banana: ['banana', 'bananas', 'banana nanica', 'banana prata', 'banana caturra', 'banana maca', 'banana da terra'],
 };
 
 /**

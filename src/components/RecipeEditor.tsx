@@ -83,7 +83,16 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
     if (changes.ing && changes.ing !== current.ing) {
       const selectedIng = ingredients.find((i) => i.id === changes.ing);
       if (selectedIng) {
-        changes.unit = selectedIng.unit;
+        const isBanana = selectedIng.name.toLowerCase().includes('banana');
+        if (isBanana) {
+          changes.unit = 'g';
+        } else if (selectedIng.unit === 'kg') {
+          changes.unit = 'g';
+        } else if (selectedIng.unit === 'L') {
+          changes.unit = 'ml';
+        } else {
+          changes.unit = selectedIng.unit;
+        }
       }
     }
 
@@ -430,7 +439,8 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
               recipe.items.map((it, idx) => {
                 const currentIng = ingredients.find((i) => i.id === it.ing);
                 const itemTotalCost = getItemCost(it, ingredients);
-                const compatibleUnits = currentIng ? getCompatibleUnits(currentIng.unit) : ['g', 'kg'];
+                const isBanana = currentIng ? currentIng.name.toLowerCase().includes('banana') : false;
+                const compatibleUnits = currentIng ? (isBanana ? (['g', 'kg'] as Unit[]) : getCompatibleUnits(currentIng.unit)) : (['g', 'kg'] as Unit[]);
 
                 return (
                   <div
