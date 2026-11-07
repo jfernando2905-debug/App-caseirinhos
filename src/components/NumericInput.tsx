@@ -41,8 +41,11 @@ export const NumericInput: React.FC<NumericInputProps> = ({
   const isInternalChange = useRef<boolean>(false);
 
   function formatInitial(val: number): string {
-    if (val === undefined || val === null || isNaN(val) || val === 0) {
+    if (val === undefined || val === null || isNaN(val)) {
       return '';
+    }
+    if (val === 0) {
+      return '0';
     }
     // Format with Brazilian comma
     if (allowDecimals) {
@@ -53,13 +56,13 @@ export const NumericInput: React.FC<NumericInputProps> = ({
     return String(Math.round(val));
   }
 
-  // Sync external changes only when not focused or when value changed externally
+  // Sync external changes (e.g. from stepper buttons or external prop updates)
   useEffect(() => {
-    if (!isFocused && !isInternalChange.current) {
+    const currentNum = text === '' || text === ',' ? 0 : parseFloat(text.replace(',', '.'));
+    if (!isFocused || isNaN(currentNum) || Math.abs(currentNum - (value || 0)) > 0.00001) {
       setText(formatInitial(value));
     }
-    isInternalChange.current = false;
-  }, [value, isFocused]);
+  }, [value, maxDecimals, allowDecimals]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let inputVal = e.target.value;
@@ -121,16 +124,16 @@ export const NumericInput: React.FC<NumericInputProps> = ({
     isInternalChange.current = false;
 
     if (!text.trim() || text === ',') {
-      setText('');
-      onChange(0);
+      setText(formatInitial(value));
+      onChange(value || 0);
       return;
     }
 
     const clean = text.replace(',', '.');
     let num = parseFloat(clean);
     if (isNaN(num)) {
-      setText('');
-      onChange(0);
+      setText(formatInitial(value));
+      onChange(value || 0);
       return;
     }
 

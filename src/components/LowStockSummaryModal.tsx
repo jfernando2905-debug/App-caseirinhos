@@ -11,18 +11,21 @@ import {
   Boxes,
   ShoppingBag,
 } from 'lucide-react';
-import { Ingredient, Recipe } from '../types';
+import { Ingredient, Recipe, Unit } from '../types';
 import {
   getAllIngredientsStockStatus,
   generateLowStockReportText,
 } from '../utils/stockUtils';
 import { formatNumber } from '../utils/calculations';
+import { Pencil } from 'lucide-react';
 
 interface LowStockSummaryModalProps {
   isOpen: boolean;
   onClose: () => void;
   ingredients: Ingredient[];
   recipes: Recipe[];
+  onSaveIngredient?: (ingredient: Ingredient) => void;
+  onEditIngredient?: (ingredient: Ingredient) => void;
   onToast?: (msg: string, type?: 'success' | 'error' | 'info') => void;
   onNavigateToScale?: () => void;
 }
@@ -32,6 +35,8 @@ export const LowStockSummaryModal: React.FC<LowStockSummaryModalProps> = ({
   onClose,
   ingredients,
   recipes,
+  onSaveIngredient,
+  onEditIngredient,
   onToast,
   onNavigateToScale,
 }) => {
@@ -77,6 +82,33 @@ export const LowStockSummaryModal: React.FC<LowStockSummaryModalProps> = ({
     if (onToast) onToast('Abrindo WhatsApp com o resumo de compras...');
   };
 
+  const getStepForUnit = (unit: Unit): number => {
+    switch (unit) {
+      case 'kg': return 0.5;
+      case 'g': return 100;
+      case 'L': return 0.5;
+      case 'ml': return 100;
+      case 'un': return 1;
+      default: return 1;
+    }
+  };
+
+  const handleQuickAdjustStock = (e: React.MouseEvent, ing: Ingredient, delta: number) => {
+    e.stopPropagation();
+    if (!onSaveIngredient) return;
+    const current = typeof ing.stock === 'number' ? ing.stock : 0;
+    const nextVal = Math.max(0, Math.round((current + delta) * 1000) / 1000);
+    onSaveIngredient({
+      ...ing,
+      stock: nextVal,
+    });
+    if (onToast) {
+      onToast(
+        `Estoque de "${ing.name}" atualizado: ${formatNumber(nextVal, ing.unit === 'g' || ing.unit === 'ml' ? 0 : 2)} ${ing.unit}`
+      );
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div
@@ -101,7 +133,7 @@ export const LowStockSummaryModal: React.FC<LowStockSummaryModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors min-h-[38px] min-w-[38px] flex items-center justify-center"
+            className="p-2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors min-h-[38px] min-w-[38px] flex items-center justify-center cursor-pointer"
             title="Fechar"
           >
             <X className="w-5 h-5" />
@@ -146,7 +178,7 @@ export const LowStockSummaryModal: React.FC<LowStockSummaryModalProps> = ({
           <div className="inline-flex rounded-xl bg-stone-100 dark:bg-stone-800 p-1 border border-stone-200/60 dark:border-stone-700/60 text-xs">
             <button
               onClick={() => setViewMode('cards')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
                 viewMode === 'cards'
                   ? 'bg-white dark:bg-stone-900 text-amber-800 dark:text-amber-400 shadow-2xs'
                   : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
@@ -156,7 +188,7 @@ export const LowStockSummaryModal: React.FC<LowStockSummaryModalProps> = ({
             </button>
             <button
               onClick={() => setViewMode('text')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1 ${
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1 cursor-pointer ${
                 viewMode === 'text'
                   ? 'bg-white dark:bg-stone-900 text-amber-800 dark:text-amber-400 shadow-2xs'
                   : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
@@ -247,6 +279,46 @@ export const LowStockSummaryModal: React.FC<LowStockSummaryModalProps> = ({
                                 <span className="text-xs text-rose-700 dark:text-rose-400 font-bold tabular-nums">
                                   Falta comprar: {formatNumber(item.deficit, u === 'g' || u === 'ml' ? 0 : 2)} {u}
                                 </span>
+
+                                <div className="flex items-center gap-1.5">
+                                  {onSaveIngredient && (
+                                    <div className="flex items-center gap-1 bg-white dark:bg-stone-800 p-0.5 rounded-lg border border-stone-200 dark:border-stone-700">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleQuickAdjustStock(e, item.ingredient, -getStepForUnit(item.ingredient.unit))}
+                                        disabled={(item.ingredient.stock ?? 0) <= 0}
+                                        className="w-6 h-6 rounded flex items-center justify-center font-bold text-xs bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 text-stone-700 dark:text-stone-200 disabled:opacity-30 cursor-pointer"
+                                        title="Diminuir estoque"
+                                      >
+                                        -
+                                      </button>
+                                      <span className="px-1 text-xs font-bold tabular-nums">
+                                        {formatNumber(item.currentStock, u === 'g' || u === 'ml' ? 0 : 2)} {u}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleQuickAdjustStock(e, item.ingredient, getStepForUnit(item.ingredient.unit))}
+                                        className="w-6 h-6 rounded flex items-center justify-center font-bold text-xs bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 text-stone-700 dark:text-stone-200 cursor-pointer"
+                                        title="Adicionar ao estoque"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  )}
+                                  {onEditIngredient && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        onClose();
+                                        onEditIngredient(item.ingredient);
+                                      }}
+                                      className="p-1 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-xs font-semibold cursor-pointer"
+                                      title="Editar ingrediente no catálogo"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           );
@@ -302,6 +374,46 @@ export const LowStockSummaryModal: React.FC<LowStockSummaryModalProps> = ({
                                 <span className="text-xs text-amber-800 dark:text-amber-300 font-bold tabular-nums">
                                   Falta comprar: {formatNumber(item.deficit, u === 'g' || u === 'ml' ? 0 : 2)} {u}
                                 </span>
+
+                                <div className="flex items-center gap-1.5">
+                                  {onSaveIngredient && (
+                                    <div className="flex items-center gap-1 bg-white dark:bg-stone-800 p-0.5 rounded-lg border border-stone-200 dark:border-stone-700">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleQuickAdjustStock(e, item.ingredient, -getStepForUnit(item.ingredient.unit))}
+                                        disabled={(item.ingredient.stock ?? 0) <= 0}
+                                        className="w-6 h-6 rounded flex items-center justify-center font-bold text-xs bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 text-stone-700 dark:text-stone-200 disabled:opacity-30 cursor-pointer"
+                                        title="Diminuir estoque"
+                                      >
+                                        -
+                                      </button>
+                                      <span className="px-1 text-xs font-bold tabular-nums">
+                                        {formatNumber(item.currentStock, u === 'g' || u === 'ml' ? 0 : 2)} {u}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleQuickAdjustStock(e, item.ingredient, getStepForUnit(item.ingredient.unit))}
+                                        className="w-6 h-6 rounded flex items-center justify-center font-bold text-xs bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 text-stone-700 dark:text-stone-200 cursor-pointer"
+                                        title="Adicionar ao estoque"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  )}
+                                  {onEditIngredient && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        onClose();
+                                        onEditIngredient(item.ingredient);
+                                      }}
+                                      className="p-1 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-xs font-semibold cursor-pointer"
+                                      title="Editar ingrediente no catálogo"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           );
