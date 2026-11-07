@@ -5,124 +5,50 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <script>
       (function() {
-        try {
-          var _origFetch = window.fetch;
-          Object.defineProperty(window, 'fetch', {
-            configurable: true,
-            enumerable: true,
-            get: function() {
-              return _origFetch;
-            },
-            set: function(val) {
-              _origFetch = val;
+        if (typeof window !== 'undefined') {
+          try {
+            if (window.fetch) {
+              var _realFetch = window.fetch;
+              Object.defineProperty(window, 'fetch', {
+                configurable: true,
+                enumerable: true,
+                get: function() {
+                  return _realFetch;
+                },
+                set: function(fn) {
+                  _realFetch = fn;
+                }
+              });
+            }
+          } catch (e) {}
+
+          var isIgnorable = function(msg) {
+            return (
+              msg.indexOf('AbortError') !== -1 ||
+              msg.indexOf('signal is aborted without reason') !== -1 ||
+              msg.indexOf('The user aborted a request') !== -1 ||
+              msg.indexOf('WebSocket closed without opened') !== -1 ||
+              msg.indexOf('Cannot set property fetch') !== -1 ||
+              msg.indexOf('@vite/client') !== -1 ||
+              msg.indexOf('chrome-extension://') !== -1
+            );
+          };
+
+          window.addEventListener('unhandledrejection', function(event) {
+            var reason = event.reason ? ((event.reason.message || '') + ' ' + (event.reason.name || '') + ' ' + String(event.reason)) : '';
+            if (isIgnorable(reason)) {
+              event.preventDefault();
             }
           });
-        } catch (err) {}
 
-        try {
-          if (typeof window.WebSocket !== 'undefined') {
-            var _OrigWebSocket = window.WebSocket;
-            window.WebSocket = function(url, protocols) {
-              if (
-                protocols === 'vite-hmr' ||
-                (typeof url === 'string' && (url.indexOf('vite-hmr') !== -1 || url.indexOf('/@vite') !== -1))
-              ) {
-                var listeners = {};
-                var fakeWs = {
-                  readyState: 1, // OPEN
-                  bufferedAmount: 0,
-                  extensions: '',
-                  protocol: 'vite-hmr',
-                  url: url,
-                  onopen: null,
-                  onclose: null,
-                  onerror: null,
-                  onmessage: null,
-                  addEventListener: function(type, fn) {
-                    listeners[type] = listeners[type] || [];
-                    listeners[type].push(fn);
-                    if (type === 'open') {
-                      setTimeout(function() {
-                        try {
-                          fn({ type: 'open' });
-                        } catch (e) {}
-                      }, 0);
-                    }
-                  },
-                  removeEventListener: function(type, fn) {
-                    if (listeners[type]) {
-                      listeners[type] = listeners[type].filter(function(f) { return f !== fn; });
-                    }
-                  },
-                  dispatchEvent: function() { return true; },
-                  send: function() {},
-                  close: function() {
-                    fakeWs.readyState = 3; // CLOSED
-                  }
-                };
-                return fakeWs;
-              }
-              return new _OrigWebSocket(url, protocols);
-            };
-            window.WebSocket.prototype = _OrigWebSocket.prototype;
-            window.WebSocket.CONNECTING = 0;
-            window.WebSocket.OPEN = 1;
-            window.WebSocket.CLOSING = 2;
-            window.WebSocket.CLOSED = 3;
-          }
-        } catch (err) {}
-
-        try {
-          var _origConsoleError = console.error;
-          console.error = function() {
-            var args = Array.prototype.slice.call(arguments);
-            var joined = args.map(function(a) {
-              return (a && a.stack) ? (String(a) + ' ' + a.stack) : String(a);
-            }).join(' ');
-
-            if (
-              joined.indexOf('WebSocket') !== -1 ||
-              joined.indexOf('@vite/client') !== -1 ||
-              joined.indexOf('[vite]') !== -1 ||
-              joined.indexOf('WebSocket closed without opened') !== -1 ||
-              joined.indexOf('signal is aborted without reason') !== -1 ||
-              joined.indexOf('AbortError') !== -1
-            ) {
-              return;
+          window.addEventListener('error', function(event) {
+            var msg = (event.message || '') + (event.error ? ' ' + (event.error.message || '') : '') + (event.filename || '');
+            if (isIgnorable(msg)) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
             }
-            return _origConsoleError.apply(console, arguments);
-          };
-        } catch (err) {}
-
-        window.addEventListener('error', function(event) {
-          var msg = (event.message || '') + (event.error ? ' ' + (event.error.message || '') + ' ' + (event.error.stack || '') : '');
-          if (
-            msg.indexOf('WebSocket') !== -1 ||
-            msg.indexOf('@vite/client') !== -1 ||
-            msg.indexOf('[vite]') !== -1 ||
-            (event.filename && (event.filename.indexOf('chrome-extension://') !== -1 || event.filename.indexOf('@vite/client') !== -1)) ||
-            (event.error && event.error.stack && (event.error.stack.indexOf('chrome-extension://') !== -1 || event.error.stack.indexOf('@vite/client') !== -1 || event.error.stack.indexOf('WebSocket') !== -1))
-          ) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            return true;
-          }
-        }, true);
-
-        window.addEventListener('unhandledrejection', function(event) {
-          var reason = event.reason ? ((event.reason.message || '') + ' ' + (event.reason.stack || '') + ' ' + String(event.reason)) : '';
-          if (
-            reason.indexOf('WebSocket') !== -1 ||
-            reason.indexOf('@vite/client') !== -1 ||
-            reason.indexOf('[vite]') !== -1 ||
-            reason.indexOf('AbortError') !== -1 ||
-            reason.indexOf('signal is aborted without reason') !== -1
-          ) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            return true;
-          }
-        }, true);
+          }, true);
+        }
       })();
     </script>
     <title>Caseirinhos Fer&Dre - Encomendas & Precificação</title>

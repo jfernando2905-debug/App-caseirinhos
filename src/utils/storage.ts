@@ -344,10 +344,18 @@ export function getInitialSeedData(): AppData {
   };
 }
 
-export function sanitizeAppData(data: AppData): AppData {
+export function sanitizeAppData(data?: AppData | null): AppData {
+  const seed = getInitialSeedData();
+  if (!data) return seed;
+
+  const rawIngs = Array.isArray(data.ings) ? data.ings : seed.ings;
+  const rawRecs = Array.isArray(data.recs) ? data.recs : seed.recs;
+
   // 1. Sanitize ingredients (ensure Banana is in kg or g, not un)
-  const sanitizedIngs = (data.ings || []).map((ing) => {
-    const isBanana = ing.name.toLowerCase().includes('banana');
+  const sanitizedIngs = rawIngs.map((ing) => {
+    if (!ing) return ing;
+    const ingName = ing.name || '';
+    const isBanana = ingName.toLowerCase().includes('banana');
     if (isBanana && ing.unit === 'un') {
       return {
         ...ing,
@@ -356,20 +364,21 @@ export function sanitizeAppData(data: AppData): AppData {
       };
     }
     return ing;
-  });
+  }).filter(Boolean) as Ingredient[];
 
   // 2. Sanitize recipes (ensure Banana items in recipes use g instead of un)
-  const sanitizedRecs = (data.recs || []).map((rec) => {
+  const sanitizedRecs = rawRecs.map((rec) => {
+    if (!rec) return rec;
     const sanitizedItems = (rec.items || []).map((item) => {
-      const matchedIng = sanitizedIngs.find((i) => i.id === item.ing);
+      if (!item) return item;
+      const matchedIng = sanitizedIngs.find((i) => i && i.id === item.ing);
+      const matchedName = matchedIng?.name || '';
+      const itemNome = (item as any).nome || (item as any).name || '';
       const isBanana =
-        (matchedIng && matchedIng.name.toLowerCase().includes('banana')) ||
-        (item as any).nome?.toLowerCase()?.includes('banana') ||
-        (item as any).name?.toLowerCase()?.includes('banana');
+        matchedName.toLowerCase().includes('banana') ||
+        itemNome.toLowerCase().includes('banana');
 
       if (isBanana && item.unit === 'un') {
-        // If qty is 15 or higher (e.g. 360), it was always meant to be in grams (360 g)
-        // If qty is small (e.g. 3 bananas), convert to grams (3 * 120 = 360 g)
         const newQty = item.qty >= 15 ? item.qty : Math.round(item.qty * 120);
         return {
           ...item,
@@ -378,18 +387,20 @@ export function sanitizeAppData(data: AppData): AppData {
         };
       }
       return item;
-    });
+    }).filter(Boolean);
 
     return {
       ...rec,
       items: sanitizedItems,
     };
-  });
+  }).filter(Boolean) as Recipe[];
 
   return {
     ...data,
     ings: sanitizedIngs,
     recs: sanitizedRecs,
+    orders: Array.isArray(data.orders) ? data.orders : seed.orders,
+    cfg: { ...DEFAULT_CONFIG, ...(data.cfg || {}) },
   };
 }
 
@@ -402,6 +413,9 @@ export function loadAppData(): AppData {
       return initial;
     }
     const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') {
+      return sanitizeAppData(getInitialSeedData());
+    }
     const loadedData: AppData = {
       ings: Array.isArray(parsed.ings) ? parsed.ings : [],
       recs: Array.isArray(parsed.recs) ? parsed.recs : [],
@@ -411,7 +425,11 @@ export function loadAppData(): AppData {
     return sanitizeAppData(loadedData);
   } catch (err) {
     console.error('Failed to load storage:', err);
-    return sanitizeAppData(getInitialSeedData());
+    try {
+      return sanitizeAppData(getInitialSeedData());
+    } catch {
+      return getInitialSeedData();
+    }
   }
 }
 

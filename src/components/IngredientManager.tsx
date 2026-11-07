@@ -837,6 +837,8 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
         onClose={() => setShowLowStockModal(false)}
         ingredients={ingredients}
         recipes={recipes}
+        onSaveIngredient={onSaveIngredient}
+        onEditIngredient={(ing) => openEditModal(ing)}
         onToast={onToast}
         onNavigateToScale={onNavigateToScale}
       />
