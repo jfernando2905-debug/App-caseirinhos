@@ -2294,14 +2294,16 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
       )}
 
       {/* Production Schedule Grid Preview & Print Modal */}
-      <ProductionGridPreviewModal
-        isOpen={isPreviewGridOpen}
-        onClose={() => setIsPreviewGridOpen(false)}
-        orders={orders}
-        recipes={recipes}
-        onUpdateStatus={onUpdateStatus}
-        onToast={onToast}
-      />
+      {isPreviewGridOpen && (
+        <ProductionGridPreviewModal
+          isOpen={isPreviewGridOpen}
+          onClose={() => setIsPreviewGridOpen(false)}
+          orders={orders}
+          recipes={recipes}
+          onUpdateStatus={onUpdateStatus}
+          onToast={onToast}
+        />
+      )}
     </div>
   );
 };

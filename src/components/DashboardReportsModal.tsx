@@ -51,8 +51,6 @@ export const DashboardReportsModal: React.FC<DashboardReportsModalProps> = ({
   const [endDate, setEndDate] = useState<string>(todayStr);
   const [preset, setPreset] = useState<'month' | '30days' | 'year' | 'all'>('month');
 
-  if (!isOpen) return null;
-
   const handleApplyPreset = (p: 'month' | '30days' | 'year' | 'all') => {
     setPreset(p);
     const d = new Date();
@@ -74,7 +72,8 @@ export const DashboardReportsModal: React.FC<DashboardReportsModalProps> = ({
 
   // Filtered orders by date range
   const filteredOrders = useMemo(() => {
-    return orders.filter((o) => {
+    const list = orders || [];
+    return list.filter((o) => {
       const d = o.entrega || '';
       if (!d) return true;
       if (startDate && d < startDate) return false;
@@ -100,9 +99,14 @@ export const DashboardReportsModal: React.FC<DashboardReportsModalProps> = ({
       const restante = Math.max(0, val - sin);
 
       faturamento += val;
-      const st = o.status || 'pendente';
-      statusCounts[st] = (statusCounts[st] || 0) + 1;
-      statusValues[st] = (statusValues[st] || 0) + val;
+      const st = (o.status || 'pendente') as 'pendente' | 'pronto' | 'entregue';
+      if (statusCounts[st] !== undefined) {
+        statusCounts[st] = (statusCounts[st] || 0) + 1;
+        statusValues[st] = (statusValues[st] || 0) + val;
+      } else {
+        statusCounts.pendente = (statusCounts.pendente || 0) + 1;
+        statusValues.pendente = (statusValues.pendente || 0) + val;
+      }
 
       if (o.pago) {
         recebidoCaixa += val;
@@ -151,6 +155,8 @@ export const DashboardReportsModal: React.FC<DashboardReportsModalProps> = ({
       if (onToast) onToast('Erro ao exportar PDF: ' + err.message, 'error');
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">

@@ -30,12 +30,11 @@ export const OrdersReportPreviewModal: React.FC<OrdersReportPreviewModalProps> =
 }) => {
   const [filter, setFilter] = useState<'abertas' | 'entregues' | 'todas'>('abertas');
 
-  if (!isOpen) return null;
-
   const filteredOrders = useMemo(() => {
-    if (filter === 'abertas') return orders.filter((o) => o.status !== 'entregue');
-    if (filter === 'entregues') return orders.filter((o) => o.status === 'entregue');
-    return orders;
+    const list = orders || [];
+    if (filter === 'abertas') return list.filter((o) => (o.status || 'pendente') !== 'entregue');
+    if (filter === 'entregues') return list.filter((o) => (o.status || 'pendente') === 'entregue');
+    return list;
   }, [orders, filter]);
 
   const summary = useMemo(() => {
@@ -51,8 +50,12 @@ export const OrdersReportPreviewModal: React.FC<OrdersReportPreviewModalProps> =
       totalSinal += sin;
       totalRestante += Math.max(val - sin, 0);
 
-      const st = o.status || 'pendente';
-      statusCounts[st] = (statusCounts[st] || 0) + 1;
+      const st = (o.status || 'pendente') as 'pendente' | 'pronto' | 'entregue';
+      if (statusCounts[st] !== undefined) {
+        statusCounts[st] = (statusCounts[st] || 0) + 1;
+      } else {
+        statusCounts.pendente = (statusCounts.pendente || 0) + 1;
+      }
     }
 
     return {
@@ -81,6 +84,8 @@ export const OrdersReportPreviewModal: React.FC<OrdersReportPreviewModalProps> =
       if (onToast) onToast('Erro ao exportar PDF: ' + err.message, 'error');
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">

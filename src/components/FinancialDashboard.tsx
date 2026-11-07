@@ -1295,15 +1295,17 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
       )}
 
       {/* Dashboard Reports Modal (Sintético & Analítico) */}
-      <DashboardReportsModal
-        isOpen={isDashboardReportsOpen}
-        onClose={() => setIsDashboardReportsOpen(false)}
-        orders={orders}
-        recipes={recipes}
-        ingredients={ingredients}
-        cfg={cfg}
-        onToast={onToast}
-      />
+      {isDashboardReportsOpen && (
+        <DashboardReportsModal
+          isOpen={isDashboardReportsOpen}
+          onClose={() => setIsDashboardReportsOpen(false)}
+          orders={orders}
+          recipes={recipes}
+          ingredients={ingredients}
+          cfg={cfg}
+          onToast={onToast}
+        />
+      )}
     </div>
   );
 };

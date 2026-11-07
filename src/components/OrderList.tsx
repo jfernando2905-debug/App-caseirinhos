@@ -764,20 +764,24 @@ export const OrderList: React.FC<OrderListProps> = ({
       )}
 
       {/* Order Preview & Export Modal (PDF / JPEG) */}
-      <OrderPreviewModal
-        order={previewOrder}
-        isOpen={Boolean(previewOrder)}
-        onClose={() => setPreviewOrder(null)}
-        onToast={onToast}
-      />
+      {previewOrder && (
+        <OrderPreviewModal
+          order={previewOrder}
+          isOpen={Boolean(previewOrder)}
+          onClose={() => setPreviewOrder(null)}
+          onToast={onToast}
+        />
+      )}
 
       {/* Full Orders Report Preview Modal */}
-      <OrdersReportPreviewModal
-        isOpen={isReportPreviewOpen}
-        onClose={() => setIsReportPreviewOpen(false)}
-        orders={orders}
-        onToast={onToast}
-      />
+      {isReportPreviewOpen && (
+        <OrdersReportPreviewModal
+          isOpen={isReportPreviewOpen}
+          onClose={() => setIsReportPreviewOpen(false)}
+          orders={orders}
+          onToast={onToast}
+        />
+      )}
     </div>
   );
 };

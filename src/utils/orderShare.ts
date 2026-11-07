@@ -188,12 +188,13 @@ export const generateOrderPdf = (order: Order): void => {
   doc.setTextColor(120, 100, 90);
   doc.text('Caseirinhos Fer&Dre · Confeitaria Caseira', margin + 6, y + 15);
 
-  const statusLabel = order.status.toUpperCase();
+  const currentStatus = order.status || 'pendente';
+  const statusLabel = currentStatus.toUpperCase();
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  if (order.status === 'entregue') {
+  if (currentStatus === 'entregue') {
     doc.setTextColor(46, 125, 50); // green
-  } else if (order.status === 'pronto') {
+  } else if (currentStatus === 'pronto') {
     doc.setTextColor(2, 132, 199); // blue
   } else {
     doc.setTextColor(217, 119, 6); // amber/warning
@@ -857,9 +858,14 @@ export const generateOrdersReportPdf = (orders: Order[], filterLabel = 'Todas'):
         doc.text(o.telefone, cols.cliente, y + 8);
       }
 
-      // Bolos text
+      // Bolos text (com tamanho obrigatório)
       const items = o.itens || [];
-      const itemSummaries = items.map((it) => `${it.qtd > 1 ? `${it.qtd}× ` : ''}${it.tipo} ${it.sabor}`);
+      const itemSummaries = items.map((it) => {
+        const qStr = (it.qtd && it.qtd > 1) ? `${it.qtd}× ` : '';
+        const szStr = it.tamanho ? ` [${it.tamanho}]` : '';
+        const saborStr = it.sabor ? ` ${it.sabor}` : '';
+        return `${qStr}${it.tipo || 'Bolo'}${szStr}${saborStr}`;
+      });
       const cakeSummary = itemSummaries.join(', ') || 'Sem bolos';
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
@@ -871,16 +877,17 @@ export const generateOrdersReportPdf = (orders: Order[], filterLabel = 'Todas'):
       }
 
       // Status
+      const ordStatus = o.status || 'pendente';
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(7.5);
-      if (o.status === 'entregue') {
+      if (ordStatus === 'entregue') {
         doc.setTextColor(22, 101, 52); // green
-      } else if (o.status === 'pronto') {
+      } else if (ordStatus === 'pronto') {
         doc.setTextColor(2, 132, 199); // blue
       } else {
         doc.setTextColor(180, 83, 9); // amber
       }
-      doc.text(o.status.toUpperCase(), cols.status, y + 5);
+      doc.text(ordStatus.toUpperCase(), cols.status, y + 5);
 
       // Valor
       doc.setFont('helvetica', 'bold');

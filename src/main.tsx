@@ -36,8 +36,12 @@ if (typeof window !== 'undefined') {
   });
 }
 
+import { ErrorBoundary } from './components/ErrorBoundary';
+
 createRoot(document.getElementById('root')!).render(
-  <AuthProvider>
-    <App />
-  </AuthProvider>
+  <ErrorBoundary>
+    <AuthProvider>
+      <App />
+    </AuthProvider>
+  </ErrorBoundary>
 );
