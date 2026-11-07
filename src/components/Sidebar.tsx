@@ -16,14 +16,15 @@ import {
   Egg,
   Settings,
   TrendingUp,
+  Boxes,
 } from 'lucide-react';
 import { AppData } from '../types';
 import { useAuth } from '../context/AuthContext';
 
 interface SidebarProps {
   data: AppData;
-  activeTab: 'orders' | 'recs' | 'ings' | 'scale' | 'cfg' | 'dashboard';
-  onNavigate: (tab: 'orders' | 'recs' | 'ings' | 'scale' | 'cfg' | 'dashboard') => void;
+  activeTab: 'orders' | 'recs' | 'ings' | 'packagings' | 'scale' | 'cfg' | 'dashboard';
+  onNavigate: (tab: 'orders' | 'recs' | 'ings' | 'packagings' | 'scale' | 'cfg' | 'dashboard') => void;
   onNewOrder: () => void;
   onNewRecipe: () => void;
   onOpenPaste: () => void;
@@ -46,6 +47,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { user, signOut } = useAuth();
   const missingPricesCount = (data.ings || []).filter((i) => i.price <= 0).length;
   const openOrdersCount = (data.orders || []).filter((o) => o.status !== 'entregue').length;
+  const lowPackagingCount = (data.packagings || []).filter((p) => p.stock < p.minStock).length;
 
   return (
     <aside className="hidden md:flex flex-col w-64 lg:w-72 shrink-0 h-screen sticky top-0 bg-stone-900 text-stone-100 border-r border-stone-800 z-30 select-none overflow-y-auto">
@@ -186,6 +188,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
               <span className="text-[11px] text-stone-500">
                 {data.ings ? data.ings.length : 0}
+              </span>
+            </div>
+          </button>
+
+          {/* Estoque de Embalagens */}
+          <button
+            onClick={() => onNavigate('packagings')}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-colors ${
+              activeTab === 'packagings'
+                ? 'bg-amber-600/15 text-amber-400 font-bold border border-amber-500/40 shadow-xs'
+                : 'text-stone-300 hover:bg-stone-800 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Boxes className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>Estoque Embalagens</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {lowPackagingCount > 0 && (
+                <span className="px-1.5 py-0.5 rounded bg-amber-950/80 text-amber-300 text-[10px] font-bold border border-amber-800/60">
+                  {lowPackagingCount} repor
+                </span>
+              )}
+              <span className="text-[11px] text-stone-500">
+                {data.packagings ? data.packagings.length : 0}
               </span>
             </div>
           </button>

@@ -40,8 +40,9 @@ import {
   AlertTriangle,
   RotateCcw,
   FileDown,
+  Boxes,
 } from 'lucide-react';
-import { Order, Recipe, Ingredient, AppSettings } from '../types';
+import { Order, Recipe, Ingredient, AppSettings, PackagingItem, PackagingMovement } from '../types';
 import { getMonthlyProfitHistory, calculateOrderCostAndProfit, MonthlyProfitData } from '../utils/orderMetrics';
 import { formatCurrency, formatNumber, calculateSizeMetrics } from '../utils/calculations';
 import { formatPaymentReminderWhatsApp, formatDatePtBR, formatItemText } from '../utils/orderShare';
@@ -52,6 +53,8 @@ interface FinancialDashboardProps {
   orders: Order[];
   recipes: Recipe[];
   ingredients: Ingredient[];
+  packagings?: PackagingItem[];
+  packagingMovements?: PackagingMovement[];
   cfg: AppSettings;
   onNewOrder: () => void;
   onNavigateToOrders: () => void;
@@ -69,6 +72,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
   orders,
   recipes,
   ingredients,
+  packagings = [],
+  packagingMovements = [],
   cfg,
   onNewOrder,
   onNavigateToOrders,
@@ -81,6 +86,25 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
   const [isDashboardReportsOpen, setIsDashboardReportsOpen] = useState<boolean>(false);
+
+  // Packaging metrics calculation
+  const packagingMetrics = useMemo(() => {
+    const totalItems = packagings.length;
+    const lowStockItems = packagings.filter((p) => p.stock > 0 && p.stock < p.minStock);
+    const zeroStockItems = packagings.filter((p) => p.stock === 0);
+    const totalValue = packagings.reduce((sum, p) => sum + p.stock * (p.unitPrice || 0), 0);
+    const recentMovements = [...packagingMovements]
+      .sort((a, b) => b.date - a.date)
+      .slice(0, 5);
+
+    return {
+      totalItems,
+      lowStockCount: lowStockItems.length,
+      zeroStockCount: zeroStockItems.length,
+      totalValue,
+      recentMovements,
+    };
+  }, [packagings, packagingMovements]);
 
   // 1. Calculate overall financial metrics
   const {
@@ -652,6 +676,52 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
                 {statusCounts.pendente} pend.
               </span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Estoque de Embalagens Summary Banner */}
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+            <Boxes className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-sm font-bold text-stone-900 dark:text-stone-100 font-display flex items-center gap-2">
+              <span>Estoque de Embalagens</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400">
+                {packagingMetrics.totalItems} materiais cadastrados
+              </span>
+            </h4>
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+              Valor estimado do acervo de embalagens em estoque: <strong className="text-stone-900 dark:text-stone-100 tabular-nums">{formatCurrency(packagingMetrics.totalValue)}</strong>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 flex-wrap text-xs">
+          <div className="px-3 py-1.5 rounded-xl bg-stone-50 dark:bg-stone-800/80 border border-stone-200/80 dark:border-stone-700/80 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="text-stone-600 dark:text-stone-400">Normal:</span>
+            <strong className="text-stone-900 dark:text-stone-100 font-semibold tabular-nums">
+              {packagingMetrics.totalItems - packagingMetrics.lowStockCount - packagingMetrics.zeroStockCount}
+            </strong>
+          </div>
+
+          <div className="px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/40 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            <span className="text-amber-800 dark:text-amber-300">Estoque Baixo:</span>
+            <strong className="text-amber-900 dark:text-amber-200 font-bold tabular-nums">
+              {packagingMetrics.lowStockCount}
+            </strong>
+          </div>
+
+          <div className="px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-rose-500" />
+            <span className="text-rose-800 dark:text-rose-300">Sem Estoque:</span>
+            <strong className="text-rose-900 dark:text-rose-200 font-bold tabular-nums">
+              {packagingMetrics.zeroStockCount}
+            </strong>
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { AppData, Ingredient, Recipe, AppSettings, Unit } from '../types';
+import { AppData, Ingredient, Recipe, AppSettings, Unit, PackagingItem, PackagingMovement } from '../types';
 import { getLocalDateStr, getTomorrowDateStr } from './dateUtils';
 
 export const STORAGE_KEY = 'custo-receitas-v1';
@@ -13,6 +13,113 @@ export const DEFAULT_CONFIG: AppSettings = {
 };
 
 export const uid = (): string => Math.random().toString(36).substring(2, 9);
+
+export const INITIAL_PACKAGINGS: PackagingItem[] = [
+  {
+    id: 'pack_cx_15',
+    name: 'Caixa para Bolo 15cm',
+    category: 'Caixas para Bolos',
+    dimension: '16 x 16 x 12 cm',
+    unit: 'un',
+    stock: 25,
+    minStock: 10,
+    price: 2.80,
+    size: 1,
+    supplier: 'Embalagens Silva',
+    notes: 'Caixa reforçada com berço para bolo P.'
+  },
+  {
+    id: 'pack_cx_20',
+    name: 'Caixa para Bolo 20cm',
+    category: 'Caixas para Bolos',
+    dimension: '22 x 22 x 15 cm',
+    unit: 'un',
+    stock: 18,
+    minStock: 10,
+    price: 3.50,
+    size: 1,
+    supplier: 'Embalagens Silva',
+    notes: 'Caixa branca com visor superior para bolo M.'
+  },
+  {
+    id: 'pack_cx_25',
+    name: 'Caixa para Bolo 25cm',
+    category: 'Caixas para Bolos',
+    dimension: '27 x 27 x 18 cm',
+    unit: 'un',
+    stock: 5,
+    minStock: 10,
+    price: 4.50,
+    size: 1,
+    supplier: 'Embalagens Silva',
+    notes: 'Caixa alta reforçada para bolo G.'
+  },
+  {
+    id: 'pack_base_20',
+    name: 'Base MDF Disco 20cm',
+    category: 'Bases e Suportes',
+    dimension: '20 cm diâmetro (3mm)',
+    unit: 'un',
+    stock: 15,
+    minStock: 8,
+    price: 1.80,
+    size: 1,
+    supplier: 'Arte em MDF',
+    notes: 'Base rígida para montagem de bolos.'
+  },
+  {
+    id: 'pack_sacola_k',
+    name: 'Sacola Kraft com Alça (M)',
+    category: 'Sacolas',
+    dimension: '30 x 25 x 15 cm',
+    unit: 'pacote',
+    stock: 0,
+    minStock: 2,
+    price: 35.00,
+    size: 25,
+    supplier: 'Papelaria Express',
+    notes: 'Sacola kraft ecológica para transporte.'
+  },
+  {
+    id: 'pack_etiqueta_logo',
+    name: 'Etiquetas / Adesivos com Logomarca',
+    category: 'Etiquetas e Adesivos',
+    dimension: '5 cm diâmetro',
+    unit: 'cento',
+    stock: 4,
+    minStock: 2,
+    price: 22.00,
+    size: 100,
+    supplier: 'Gráfica Rápida',
+    notes: 'Adesivos para lacrar embalagens.'
+  },
+  {
+    id: 'pack_forminha_cupcake',
+    name: 'Forminhas de Papel Cupcake nº 0',
+    category: 'Forminhas',
+    dimension: 'Número 0',
+    unit: 'pacote',
+    stock: 8,
+    minStock: 3,
+    price: 12.50,
+    size: 100,
+    supplier: 'Festa & Cia',
+    notes: 'Forminhas forneáveis.'
+  },
+  {
+    id: 'pack_pote_250',
+    name: 'Pote Plástico 250ml (Bolo no Pote)',
+    category: 'Potes e Embalagens Plásticas',
+    dimension: '250 ml',
+    unit: 'pacote',
+    stock: 12,
+    minStock: 5,
+    price: 28.00,
+    size: 50,
+    supplier: 'Plásticos Práticos',
+    notes: 'Potes transparentes com tampa.'
+  }
+];
 
 export function getInitialSeedData(): AppData {
   const now = Date.now();
@@ -341,6 +448,8 @@ export function getInitialSeedData(): AppData {
     recs,
     orders,
     cfg: { ...DEFAULT_CONFIG },
+    packagings: INITIAL_PACKAGINGS,
+    packagingMovements: [],
   };
 }
 
@@ -395,12 +504,20 @@ export function sanitizeAppData(data?: AppData | null): AppData {
     };
   }).filter(Boolean) as Recipe[];
 
+  const rawPackagings = Array.isArray(data.packagings) && data.packagings.length > 0
+    ? data.packagings
+    : INITIAL_PACKAGINGS;
+
   return {
     ...data,
     ings: sanitizedIngs,
     recs: sanitizedRecs,
     orders: Array.isArray(data.orders) ? data.orders : seed.orders,
     cfg: { ...DEFAULT_CONFIG, ...(data.cfg || {}) },
+    packagings: rawPackagings,
+    packagingMovements: Array.isArray(data.packagingMovements) ? data.packagingMovements : [],
+    shoppingStatuses: data.shoppingStatuses && typeof data.shoppingStatuses === 'object' ? data.shoppingStatuses : {},
+    stockMovements: Array.isArray(data.stockMovements) ? data.stockMovements : [],
   };
 }
 
@@ -421,6 +538,10 @@ export function loadAppData(): AppData {
       recs: Array.isArray(parsed.recs) ? parsed.recs : [],
       orders: Array.isArray(parsed.orders) ? parsed.orders : [],
       cfg: { ...DEFAULT_CONFIG, ...(parsed.cfg || {}) },
+      packagings: Array.isArray(parsed.packagings) && parsed.packagings.length > 0 ? parsed.packagings : INITIAL_PACKAGINGS,
+      packagingMovements: Array.isArray(parsed.packagingMovements) ? parsed.packagingMovements : [],
+      shoppingStatuses: parsed.shoppingStatuses && typeof parsed.shoppingStatuses === 'object' ? parsed.shoppingStatuses : {},
+      stockMovements: Array.isArray(parsed.stockMovements) ? parsed.stockMovements : [],
     };
     return sanitizeAppData(loadedData);
   } catch (err) {

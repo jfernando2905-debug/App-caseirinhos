@@ -18,6 +18,7 @@ import {
   Egg,
   Settings,
   TrendingUp,
+  Boxes,
 } from 'lucide-react';
 import { AppData } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -28,8 +29,8 @@ interface HeaderProps {
   onNewOrder: () => void;
   onOpenPaste: () => void;
   onOpenAuth: () => void;
-  activeTab: 'orders' | 'recs' | 'ings' | 'scale' | 'cfg' | 'dashboard';
-  onNavigate: (tab: 'orders' | 'recs' | 'ings' | 'scale' | 'cfg' | 'dashboard') => void;
+  activeTab: 'orders' | 'recs' | 'ings' | 'packagings' | 'scale' | 'cfg' | 'dashboard';
+  onNavigate: (tab: 'orders' | 'recs' | 'ings' | 'packagings' | 'scale' | 'cfg' | 'dashboard') => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
 }
@@ -408,6 +409,26 @@ export const Header: React.FC<HeaderProps> = ({
                       {data.ings.length}
                     </span>
                   </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onNavigate('packagings');
+                  }}
+                  className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-medium transition-colors min-h-[40px] ${
+                    activeTab === 'packagings'
+                      ? 'bg-stone-800 text-amber-400 font-bold border border-amber-500/40'
+                      : 'text-stone-300 hover:bg-stone-800 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Boxes className="w-4 h-4 text-amber-400" />
+                    <span>Estoque Embalagens</span>
+                  </div>
+                  <span className="text-[11px] text-stone-400">
+                    {data.packagings ? data.packagings.length : 0}
+                  </span>
                 </button>
 
                 <button

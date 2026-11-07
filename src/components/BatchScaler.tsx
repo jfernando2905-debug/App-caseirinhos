@@ -24,8 +24,12 @@ import {
   Save,
   History,
   CheckCircle2,
+  Truck,
+  PackageCheck,
+  RotateCcw,
+  ArrowRight,
 } from 'lucide-react';
-import { Recipe, Ingredient, AppSettings, Order, Unit, PriceHistoryEntry } from '../types';
+import { Recipe, Ingredient, AppSettings, Order, Unit, PriceHistoryEntry, PurchaseStatus, PurchaseItemStatus, StockMovement, PackagingItem, PackagingMovement } from '../types';
 import {
   scaleBatch,
   formatCurrency,
@@ -37,14 +41,25 @@ import {
   calculateGasCost,
   calculateElectricityCost,
 } from '../utils/calculations';
+import { uid } from '../utils/storage';
 import { NumericInput } from './NumericInput';
 import { ProductionGridPreviewModal } from './ProductionGridPreviewModal';
+import { ReceiveItemModal } from './ReceiveItemModal';
+import { StockHistoryModal } from './StockHistoryModal';
 
 interface BatchScalerProps {
   recipes: Recipe[];
   ingredients: Ingredient[];
+  packagings?: PackagingItem[];
   orders?: Order[];
   cfg: AppSettings;
+  shoppingStatuses?: Record<string, PurchaseItemStatus>;
+  stockMovements?: StockMovement[];
+  packagingMovements?: PackagingMovement[];
+  onUpdateShoppingStatus?: (itemId: string, status: PurchaseItemStatus) => void;
+  onAddStockMovement?: (movement: StockMovement) => void;
+  onSavePackaging?: (packaging: PackagingItem) => void;
+  onAddPackagingMovement?: (movement: PackagingMovement) => void;
   initialRecipeId?: string;
   onOpenRecipe: (recipe: Recipe) => void;
   onSaveIngredient?: (ingredient: Ingredient) => void;
@@ -72,6 +87,7 @@ interface AggregatedIngredient {
   isCakePackaging?: boolean;
   cakeSizeName?: string;
   recipeIds?: string[];
+  packagingItem?: PackagingItem;
 }
 
 interface AggregatedBakeItem {
@@ -88,9 +104,18 @@ interface AggregatedBakeItem {
 export const BatchScaler: React.FC<BatchScalerProps> = ({
   recipes,
   ingredients,
+  packagings = [],
   orders = [],
   cfg,
+  shoppingStatuses = {},
+  stockMovements = [],
+  packagingMovements = [],
+  onUpdateShoppingStatus,
+  onAddStockMovement,
+  onSavePackaging,
+  onAddPackagingMovement,
   initialRecipeId,
+  onOpenRecipe,
   onSaveIngredient,
   onUpdateRecipe,
   onUpdateStatus,
@@ -119,6 +144,11 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [onlyShowDeficit, setOnlyShowDeficit] = useState<boolean>(true);
   const [isPreviewGridOpen, setIsPreviewGridOpen] = useState<boolean>(false);
+
+  // New Shopping Purchase & Receipt States
+  const [receivingItem, setReceivingItem] = useState<AggregatedIngredient | null>(null);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
+  const [purchaseStatusFilter, setPurchaseStatusFilter] = useState<'all' | 'pendente' | 'comprado' | 'recebido'>('all');
 
   // Shopping list customization & editing state
   const [customPackageCounts, setCustomPackageCounts] = useState<Record<string, number>>({});
@@ -511,6 +541,45 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
 
     aggregatedIngsList.push(...packAggregatedList);
 
+    // Also include catalog packagings below minStock
+    for (const p of packagings) {
+      if (p.stock < p.minStock) {
+        const alreadyInList = aggregatedIngsList.some(
+          (item) => item.id === p.id || item.name.toLowerCase() === p.name.toLowerCase()
+        );
+        if (!alreadyInList) {
+          const deficit = Math.max(0, p.minStock - p.stock);
+          const syntheticIng: Ingredient = {
+            id: p.id,
+            name: p.name,
+            price: p.unitPrice || 0,
+            size: 1,
+            unit: (p.unit as Unit) || 'un',
+            category: 'Embalagens',
+            stock: p.stock,
+            hist: [],
+          };
+          aggregatedIngsList.push({
+            id: p.id,
+            name: p.name,
+            category: 'Embalagens',
+            baseQty: deficit,
+            baseUnit: 'un',
+            proportionalCost: deficit * (p.unitPrice || 0),
+            packagesNeeded: deficit,
+            packageCost: deficit * (p.unitPrice || 0),
+            surplusBase: 0,
+            availableStockBaseQty: p.stock,
+            deficitBaseQty: deficit,
+            ing: syntheticIng,
+            usedIn: [{ recipeName: 'Estoque Mínimo Embalagens', count: 1 }],
+            isCakePackaging: true,
+            packagingItem: p,
+          });
+        }
+      }
+    }
+
     // Sort by category then name
     aggregatedIngsList.sort((a, b) => {
       if (a.category !== b.category) {
@@ -846,6 +915,213 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
     }, 700);
   };
 
+  // Helper for unit conversion
+  const convertQuantity = (qty: number, fromUnit: Unit, toUnit: Unit): number => {
+    if (fromUnit === toUnit) return qty;
+    const fromFactor = UNIT_FACTORS[fromUnit] || 1;
+    const baseValue = qty * fromFactor;
+    const toFactor = UNIT_FACTORS[toUnit] || 1;
+    return baseValue / toFactor;
+  };
+
+  // Status Handlers for Purchase & Receipt Workflow
+  const handleMarkComprado = (item: AggregatedIngredient) => {
+    if (onUpdateShoppingStatus) {
+      onUpdateShoppingStatus(item.id, {
+        status: 'comprado',
+        boughtAt: Date.now(),
+      });
+    }
+    if (onToast) {
+      onToast(`"${item.name}" marcado como Comprado / Aguardando recebimento.`, 'info');
+    }
+  };
+
+  const handleOpenReceiveModal = (item: AggregatedIngredient) => {
+    const currentEntry = shoppingStatuses[item.id];
+    if (currentEntry?.status === 'recebido') {
+      if (onToast) onToast('Este item já foi recebido no estoque.', 'info');
+      return;
+    }
+    setReceivingItem(item);
+  };
+
+  const handleConfirmReceipt = (
+    item: { id: string; name: string; ing?: Ingredient; baseQty: number; baseUnit: Unit; isCakePackaging?: boolean; packagingItem?: PackagingItem },
+    receivedQty: number,
+    receivedUnit: Unit
+  ) => {
+    const currentEntry = shoppingStatuses[item.id];
+    if (currentEntry?.status === 'recebido') {
+      if (onToast) onToast('Este item já teve sua entrada de estoque registrada.', 'info');
+      return;
+    }
+
+    // Check if matching packaging in packagings catalog
+    const matchedPackaging = item.packagingItem || packagings.find(
+      (p) => p.id === item.id || p.name.toLowerCase() === item.name.toLowerCase()
+    );
+
+    if (matchedPackaging && onSavePackaging) {
+      const addedQty = Math.max(0, receivedQty);
+      const newStock = matchedPackaging.stock + addedQty;
+      onSavePackaging({
+        ...matchedPackaging,
+        stock: newStock,
+      });
+
+      const movement: PackagingMovement = {
+        id: uid(),
+        packagingId: matchedPackaging.id,
+        packagingName: matchedPackaging.name,
+        type: 'entrada',
+        qty: addedQty,
+        date: Date.now(),
+        reason: 'Compra / Lista de Compras',
+        notes: `Recebimento da lista de compras (${formatNumber(receivedQty, 0)} ${receivedUnit})`,
+      };
+
+      if (onAddPackagingMovement) {
+        onAddPackagingMovement(movement);
+      }
+
+      const statusEntry: PurchaseItemStatus = {
+        status: 'recebido',
+        receivedAt: Date.now(),
+        receivedQty,
+        receivedUnit,
+        addedStockAmount: addedQty,
+        movementId: movement.id,
+      };
+
+      if (onUpdateShoppingStatus) {
+        onUpdateShoppingStatus(item.id, statusEntry);
+      }
+
+      if (onToast) {
+        onToast(
+          `Recebimento de embalagem "${matchedPackaging.name}" confirmado! +${formatNumber(addedQty, 0)} ${matchedPackaging.unit} adicionado ao estoque de embalagens.`,
+          'success'
+        );
+      }
+      return;
+    }
+
+    if (!item.ing) return;
+
+    const amountInStockUnit = convertQuantity(receivedQty, receivedUnit, item.ing.unit);
+    const currentStock = typeof item.ing.stock === 'number' ? item.ing.stock : 0;
+    const newStock = Math.max(0, currentStock + amountInStockUnit);
+
+    // 1. Save ingredient stock
+    if (onSaveIngredient) {
+      onSaveIngredient({
+        ...item.ing,
+        stock: newStock,
+      });
+    }
+
+    // 2. Add Stock Movement
+    const movement: StockMovement = {
+      id: uid(),
+      ingredientId: item.ing.id,
+      ingredientName: item.name,
+      type: 'entrada',
+      origin: 'Compra',
+      qty: amountInStockUnit,
+      unit: item.ing.unit,
+      date: Date.now(),
+      note: `Recebimento da lista de compras (${formatNumber(receivedQty, 2)} ${receivedUnit})`,
+      shoppingItemId: item.id,
+    };
+
+    if (onAddStockMovement) {
+      onAddStockMovement(movement);
+    }
+
+    // 3. Update Purchase Item Status
+    const statusEntry: PurchaseItemStatus = {
+      status: 'recebido',
+      receivedAt: Date.now(),
+      receivedQty,
+      receivedUnit,
+      addedStockAmount: amountInStockUnit,
+      movementId: movement.id,
+    };
+
+    if (onUpdateShoppingStatus) {
+      onUpdateShoppingStatus(item.id, statusEntry);
+    }
+
+    if (onToast) {
+      onToast(
+        `Recebimento de "${item.name}" confirmado! +${formatNumber(amountInStockUnit, item.ing.unit === 'g' || item.ing.unit === 'ml' ? 0 : 2)} ${item.ing.unit} adicionado ao estoque.`,
+        'success'
+      );
+    }
+  };
+
+  const handleEstornarReceipt = (itemId: string, itemIng?: Ingredient, itemName?: string) => {
+    const currentEntry = shoppingStatuses[itemId];
+    if (!currentEntry || currentEntry.status !== 'recebido') return;
+
+    const addedQty = currentEntry.addedStockAmount || 0;
+    const targetIng = itemIng || ingredients.find((i) => i.id === itemId);
+
+    if (targetIng && addedQty > 0) {
+      const currentStock = typeof targetIng.stock === 'number' ? targetIng.stock : 0;
+      const newStock = Math.max(0, currentStock - addedQty);
+
+      if (onSaveIngredient) {
+        onSaveIngredient({
+          ...targetIng,
+          stock: newStock,
+        });
+      }
+
+      const estornoMovement: StockMovement = {
+        id: uid(),
+        ingredientId: targetIng.id,
+        ingredientName: targetIng.name,
+        type: 'estorno',
+        origin: 'Estorno Compra',
+        qty: -addedQty,
+        unit: targetIng.unit,
+        date: Date.now(),
+        note: `Estorno de recebimento de compra`,
+        shoppingItemId: itemId,
+      };
+
+      if (onAddStockMovement) {
+        onAddStockMovement(estornoMovement);
+      }
+    }
+
+    if (onUpdateShoppingStatus) {
+      onUpdateShoppingStatus(itemId, { status: 'comprado', boughtAt: Date.now() });
+    }
+
+    if (onToast) {
+      onToast(
+        `Recebimento de "${itemName || targetIng?.name || 'ingrediente'}" estornado. Estoque ajustado.`,
+        'info'
+      );
+    }
+  };
+
+  const handleResetToPendente = (itemId: string, itemName?: string) => {
+    const currentEntry = shoppingStatuses[itemId];
+    if (currentEntry?.status === 'recebido') {
+      handleEstornarReceipt(itemId, undefined, itemName);
+    }
+    if (onUpdateShoppingStatus) {
+      onUpdateShoppingStatus(itemId, { status: 'pendente' });
+    }
+    if (onToast) {
+      onToast(`Status de "${itemName || 'ingrediente'}" alterado para Pendente.`, 'info');
+    }
+  };
+
   // Filter shopping items by category
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -867,13 +1143,22 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
     if (categoryFilter !== 'all') {
       list = list.filter((i) => i.category === categoryFilter);
     }
+    if (purchaseStatusFilter !== 'all') {
+      list = list.filter((i) => {
+        const itemStatus = shoppingStatuses[i.id]?.status || 'pendente';
+        return itemStatus === purchaseStatusFilter;
+      });
+    }
     return list;
-  }, [shoppingItems, categoryFilter, onlyShowDeficit, customPackageCounts]);
+  }, [shoppingItems, categoryFilter, onlyShowDeficit, customPackageCounts, purchaseStatusFilter, shoppingStatuses]);
 
   // Shopping list stats
   const totalShoppingItems = shoppingItems.length;
-  const purchasedCount = shoppingItems.filter((i) => purchasedIngredients[i.id]).length;
+  const pendenteCount = shoppingItems.filter((i) => (shoppingStatuses[i.id]?.status || 'pendente') === 'pendente').length;
+  const compradoCount = shoppingItems.filter((i) => shoppingStatuses[i.id]?.status === 'comprado').length;
+  const recebidoCount = shoppingItems.filter((i) => shoppingStatuses[i.id]?.status === 'recebido').length;
   const totalShoppingBudget = shoppingItems.reduce((sum, i) => sum + i.packageCost, 0);
+  const purchasedIngredientsCount = Object.values(purchasedIngredients).filter(Boolean).length;
 
   // Copy shopping list to WhatsApp formatted text
   const handleCopyWhatsAppShoppingList = () => {
@@ -1496,7 +1781,7 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
 
             {/* Shopping Action Strip */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-1 no-print">
-              {/* Category Filter & Stock Abatement Toggle */}
+              {/* Category & Status Filters */}
               <div className="flex flex-wrap items-center gap-2">
                 {/* Stock Deduction Toggle */}
                 <button
@@ -1515,9 +1800,6 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
 
                 <div className="flex items-center gap-1.5">
                   <Filter className="w-4 h-4 text-stone-400" />
-                  <span className="text-xs font-semibold text-stone-700 dark:text-stone-300">
-                    Categoria:
-                  </span>
                   <select
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
@@ -1531,14 +1813,72 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
                     ))}
                   </select>
                 </div>
+
+                {/* Purchase Status Filter Tabs */}
+                <div className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800/80 p-0.5 rounded-lg border border-stone-200 dark:border-stone-700 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPurchaseStatusFilter('all')}
+                    className={`px-2 py-1 rounded font-semibold transition-colors ${
+                      purchaseStatusFilter === 'all'
+                        ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 shadow-xs'
+                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                    }`}
+                  >
+                    Todos ({totalShoppingItems})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPurchaseStatusFilter('pendente')}
+                    className={`px-2 py-1 rounded font-semibold transition-colors ${
+                      purchaseStatusFilter === 'pendente'
+                        ? 'bg-white dark:bg-stone-900 text-amber-800 dark:text-amber-300 shadow-xs'
+                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                    }`}
+                  >
+                    ⏳ Pendentes ({pendenteCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPurchaseStatusFilter('comprado')}
+                    className={`px-2 py-1 rounded font-semibold transition-colors ${
+                      purchaseStatusFilter === 'comprado'
+                        ? 'bg-white dark:bg-stone-900 text-sky-800 dark:text-sky-300 shadow-xs'
+                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                    }`}
+                  >
+                    🚚 Comprados ({compradoCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPurchaseStatusFilter('recebido')}
+                    className={`px-2 py-1 rounded font-semibold transition-colors ${
+                      purchaseStatusFilter === 'recebido'
+                        ? 'bg-white dark:bg-stone-900 text-emerald-800 dark:text-emerald-300 shadow-xs'
+                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                    }`}
+                  >
+                    ✅ Recebidos ({recebidoCount})
+                  </button>
+                </div>
               </div>
 
-              {/* Action Buttons: WhatsApp & Bulk Check */}
-              <div className="flex items-center gap-2">
+              {/* Action Buttons: Stock History, WhatsApp & Bulk Check */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsHistoryModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700 rounded-xl transition-colors"
+                  title="Ver histórico de movimentações e entradas de estoque"
+                >
+                  <History className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>Histórico de Estoque</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
-                    const allChecked = purchasedCount === totalShoppingItems;
+                    const allChecked = purchasedIngredientsCount === totalShoppingItems;
                     const updated: Record<string, boolean> = {};
                     shoppingItems.forEach((i) => {
                       updated[i.id] = !allChecked;
@@ -1547,7 +1887,7 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
                   }}
                   className="px-3 py-1.5 text-xs font-semibold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 rounded-xl transition-colors"
                 >
-                  {purchasedCount === totalShoppingItems ? 'Desmarcar Todos' : 'Marcar Todos'}
+                  {purchasedIngredientsCount === totalShoppingItems ? 'Desmarcar Todos' : 'Marcar Todos'}
                 </button>
 
                 <button
@@ -1574,17 +1914,17 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
             <div className="space-y-1.5 pt-2">
               <div className="flex items-center justify-between text-xs text-stone-600 dark:text-stone-400">
                 <span>
-                  Progresso das Compras: <strong>{purchasedCount} de {totalShoppingItems} itens no carrinho</strong>
+                  Progresso das Compras: <strong>{purchasedIngredientsCount} de {totalShoppingItems} itens no carrinho</strong>
                 </span>
                 <span className="font-bold text-amber-700 dark:text-amber-400">
-                  {totalShoppingItems > 0 ? Math.round((purchasedCount / totalShoppingItems) * 100) : 0}%
+                  {totalShoppingItems > 0 ? Math.round((purchasedIngredientsCount / totalShoppingItems) * 100) : 0}%
                 </span>
               </div>
               <div className="w-full bg-stone-100 dark:bg-stone-800 rounded-full h-2 overflow-hidden">
                 <div
                   className="bg-emerald-600 h-2 rounded-full transition-all duration-300"
                   style={{
-                    width: `${totalShoppingItems > 0 ? (purchasedCount / totalShoppingItems) * 100 : 0}%`,
+                    width: `${totalShoppingItems > 0 ? (purchasedIngredientsCount / totalShoppingItems) * 100 : 0}%`,
                   }}
                 />
               </div>
@@ -1601,7 +1941,7 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
                 {totalShoppingItems} ingredientes
               </strong>
               <span className="text-[11px] text-stone-500 dark:text-stone-400 block mt-0.5">
-                {purchasedCount} comprados, {totalShoppingItems - purchasedCount} pendentes
+                {pendenteCount} pendentes, {compradoCount} a caminho, {recebidoCount} recebidos
               </span>
             </div>
 
@@ -1697,6 +2037,35 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
                             >
                               {item.category || 'Geral'}
                             </span>
+
+                            {/* Status Badge */}
+                            {(() => {
+                              const itemStatus = shoppingStatuses[item.id]?.status || 'pendente';
+                              const statusEntry = shoppingStatuses[item.id];
+                              if (itemStatus === 'pendente') {
+                                return (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex items-center gap-1">
+                                    <Clock className="w-3 h-3 text-amber-600" /> ⏳ Pendente
+                                  </span>
+                                );
+                              }
+                              if (itemStatus === 'comprado') {
+                                return (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-sky-50 text-sky-800 dark:bg-sky-950/80 dark:text-sky-300 border border-sky-200 dark:border-sky-800 flex items-center gap-1">
+                                    <Truck className="w-3 h-3 text-sky-600" /> 🚚 Comprado / Aguardando
+                                  </span>
+                                );
+                              }
+                              if (itemStatus === 'recebido') {
+                                return (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                                    <PackageCheck className="w-3 h-3 text-emerald-600" /> ✅ Recebido
+                                    {statusEntry?.addedStockAmount ? ` (+${formatNumber(statusEntry.addedStockAmount, item.ing?.unit === 'g' || item.ing?.unit === 'ml' ? 0 : 2)} ${item.ing?.unit || item.baseUnit})` : ''}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
 
                           <div className="text-xs text-stone-500 dark:text-stone-400 mt-1 flex items-center gap-2 flex-wrap">
@@ -1731,7 +2100,7 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
                         </div>
                       </div>
 
-                      {/* Right: Package Calculation, Stepper, Cost & Edit button */}
+                      {/* Right: Package Calculation, Stepper, Cost, Purchase Action Buttons & Edit button */}
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between sm:justify-end gap-2.5 pl-8 sm:pl-0">
                         {hasPackInfo ? (
                           <div className="flex items-center gap-2">
@@ -1782,6 +2151,63 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
                             </span>
                           </div>
                         )}
+
+                        {/* Purchase Status Workflow Buttons */}
+                        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          {(() => {
+                            const itemStatus = shoppingStatuses[item.id]?.status || 'pendente';
+                            if (itemStatus === 'pendente') {
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => handleMarkComprado(item)}
+                                  className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition-colors shadow-xs"
+                                  title="Marcar como Comprado (Aguardando Recebimento)"
+                                >
+                                  <Truck className="w-3.5 h-3.5" />
+                                  <span>Marcar Comprado</span>
+                                </button>
+                              );
+                            }
+                            if (itemStatus === 'comprado') {
+                              return (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenReceiveModal(item)}
+                                    className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors shadow-xs"
+                                    title="Confirmar chegada e dar entrada no estoque"
+                                  >
+                                    <PackageCheck className="w-3.5 h-3.5" />
+                                    <span>Dar Entrada</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleResetToPendente(item.id, item.name)}
+                                    className="p-1.5 rounded-lg border border-stone-200 dark:border-stone-700 text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+                                    title="Voltar status para Pendente"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              );
+                            }
+                            if (itemStatus === 'recebido') {
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => handleEstornarReceipt(item.id, item.ing, item.name)}
+                                  className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-700 dark:text-rose-300 text-xs font-semibold transition-colors"
+                                  title="Estornar recebimento e subtrair do estoque"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>Estornar</span>
+                                </button>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
 
                         {/* Edit Price / Packaging Button */}
                         <button
@@ -2302,6 +2728,33 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
           recipes={recipes}
           onUpdateStatus={onUpdateStatus}
           onToast={onToast}
+        />
+      )}
+
+      {/* Item Receiving Modal */}
+      {receivingItem && (
+        <ReceiveItemModal
+          isOpen={!!receivingItem}
+          onClose={() => setReceivingItem(null)}
+          item={{
+            id: receivingItem.id,
+            name: receivingItem.name,
+            category: receivingItem.category,
+            ing: receivingItem.ing,
+            baseQty: receivingItem.baseQty,
+            baseUnit: receivingItem.baseUnit as Unit,
+            packagesNeeded: receivingItem.packagesNeeded,
+          }}
+          onConfirmReceipt={handleConfirmReceipt}
+        />
+      )}
+
+      {/* Stock Movement History Modal */}
+      {isHistoryModalOpen && (
+        <StockHistoryModal
+          isOpen={isHistoryModalOpen}
+          onClose={() => setIsHistoryModalOpen(false)}
+          movements={stockMovements}
         />
       )}
     </div>

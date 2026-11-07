@@ -8,7 +8,7 @@ import {
   getDocs,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { AppData, Ingredient, Recipe, Order, AppSettings } from '../types';
+import { AppData, Ingredient, Recipe, Order, AppSettings, PackagingItem, PackagingMovement } from '../types';
 
 /**
  * Strips all undefined fields recursively to prevent Firestore 'Unsupported field value: undefined' errors.
@@ -138,6 +138,8 @@ export function subscribeToUserData(
     onRecipes: (recs: Recipe[]) => void;
     onOrders: (orders: Order[]) => void;
     onSettings: (cfg: AppSettings) => void;
+    onPackagings?: (packagings: PackagingItem[]) => void;
+    onPackagingMovements?: (movements: PackagingMovement[]) => void;
     onError?: (err: any) => void;
   }
 ) {
@@ -292,6 +294,74 @@ export function subscribeToUserData(
   );
   unsubscribers.push(unsubSettings);
 
+  // 5. Packagings Listener
+  if (callbacks.onPackagings) {
+    const packsPath = `users/${userId}/packagings`;
+    const unsubPacks = onSnapshot(
+      collection(db, 'users', userId, 'packagings'),
+      (snapshot) => {
+        const items: PackagingItem[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          items.push({
+            id: data.id || docSnap.id,
+            name: data.name || '',
+            category: data.category || 'Outros',
+            dimension: data.dimension || '',
+            unit: data.unit || 'un',
+            stock: Number(data.stock) || 0,
+            minStock: Number(data.minStock) || 0,
+            price: typeof data.price === 'number' ? data.price : undefined,
+            size: typeof data.size === 'number' ? data.size : undefined,
+            supplier: data.supplier || '',
+            notes: data.notes || '',
+            updatedAt: data.updatedAt ? new Date(data.updatedAt).getTime() : Date.now(),
+          });
+        });
+        callbacks.onPackagings!(items);
+      },
+      (error: any) => {
+        if (error?.name === 'AbortError' || error?.message?.includes('aborted')) return;
+        console.warn(`Firestore sync error on ${packsPath}:`, error);
+        if (callbacks.onError) callbacks.onError(error);
+      }
+    );
+    unsubscribers.push(unsubPacks);
+  }
+
+  // 6. Packaging Movements Listener
+  if (callbacks.onPackagingMovements) {
+    const packMovPath = `users/${userId}/packagingMovements`;
+    const unsubPackMov = onSnapshot(
+      collection(db, 'users', userId, 'packagingMovements'),
+      (snapshot) => {
+        const items: PackagingMovement[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          items.push({
+            id: data.id || docSnap.id,
+            packagingId: data.packagingId || '',
+            packagingName: data.packagingName || '',
+            type: data.type || 'entrada',
+            origin: data.origin || 'Ajuste Manual',
+            qty: Number(data.qty) || 0,
+            unit: data.unit || 'un',
+            date: typeof data.date === 'number' ? data.date : Date.now(),
+            note: data.note || '',
+            shoppingItemId: data.shoppingItemId || undefined,
+          });
+        });
+        callbacks.onPackagingMovements!(items);
+      },
+      (error: any) => {
+        if (error?.name === 'AbortError' || error?.message?.includes('aborted')) return;
+        console.warn(`Firestore sync error on ${packMovPath}:`, error);
+        if (callbacks.onError) callbacks.onError(error);
+      }
+    );
+    unsubscribers.push(unsubPackMov);
+  }
+
   return () => {
     unsubscribers.forEach((unsub) => unsub());
   };
@@ -378,6 +448,43 @@ export async function saveCloudSettings(userId: string, cfg: AppSettings): Promi
       updatedAt: new Date().toISOString(),
     });
     await setDoc(doc(db, 'users', userId, 'settings', 'config'), payload);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function saveCloudPackaging(userId: string, packaging: PackagingItem): Promise<void> {
+  const path = `users/${userId}/packagings/${packaging.id}`;
+  try {
+    const payload = removeUndefined({
+      ...packaging,
+      userId,
+      updatedAt: new Date().toISOString(),
+    });
+    await setDoc(doc(db, 'users', userId, 'packagings', packaging.id), payload);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function deleteCloudPackaging(userId: string, id: string): Promise<void> {
+  const path = `users/${userId}/packagings/${id}`;
+  try {
+    await deleteDoc(doc(db, 'users', userId, 'packagings', id));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function saveCloudPackagingMovement(userId: string, movement: PackagingMovement): Promise<void> {
+  const path = `users/${userId}/packagingMovements/${movement.id}`;
+  try {
+    const payload = removeUndefined({
+      ...movement,
+      userId,
+      updatedAt: new Date().toISOString(),
+    });
+    await setDoc(doc(db, 'users', userId, 'packagingMovements', movement.id), payload);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }

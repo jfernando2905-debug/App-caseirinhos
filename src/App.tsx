@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { AppData, Recipe, Ingredient, AppSettings, Order, OrderStatus } from './types';
+import { AppData, Recipe, Ingredient, AppSettings, Order, OrderStatus, PurchaseItemStatus, StockMovement, PackagingItem, PackagingMovement } from './types';
 import { loadAppData, saveAppData, sanitizeAppData, getInitialSeedData, uid, DEFAULT_CONFIG } from './utils/storage';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -14,6 +14,7 @@ import { OrderFormModal } from './components/OrderFormModal';
 import { RecipeList } from './components/RecipeList';
 import { RecipeEditor } from './components/RecipeEditor';
 import { IngredientManager } from './components/IngredientManager';
+import { PackagingManager } from './components/PackagingManager';
 import { BatchScaler } from './components/BatchScaler';
 import { SettingsView } from './components/SettingsView';
 import { FinancialDashboard } from './components/FinancialDashboard';
@@ -34,12 +35,15 @@ import {
   saveCloudOrder,
   deleteCloudOrder,
   saveCloudSettings,
+  saveCloudPackaging,
+  deleteCloudPackaging,
+  saveCloudPackagingMovement,
 } from './services/firestoreSync';
 
 export default function App() {
   const { user } = useAuth();
   const [data, setData] = useState<AppData>(() => loadAppData());
-  const [activeTab, setActiveTab] = useState<'orders' | 'recs' | 'ings' | 'scale' | 'cfg' | 'dashboard'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'recs' | 'ings' | 'packagings' | 'scale' | 'cfg' | 'dashboard'>('orders');
   const [activeRecipe, setActiveRecipe] = useState<Recipe | null>(null);
   const [orderFormOpen, setOrderFormOpen] = useState<boolean>(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
@@ -117,6 +121,12 @@ export default function App() {
             },
             onOrders: (cloudOrders) => {
               if (!isCancelled) setData((prev) => ({ ...prev, orders: cloudOrders }));
+            },
+            onPackagings: (cloudPacks) => {
+              if (!isCancelled) setData((prev) => sanitizeAppData({ ...prev, packagings: cloudPacks }));
+            },
+            onPackagingMovements: (cloudMovements) => {
+              if (!isCancelled) setData((prev) => ({ ...prev, packagingMovements: cloudMovements }));
             },
             onSettings: (cloudCfg) => {
               if (!isCancelled && cloudCfg) {
@@ -460,6 +470,61 @@ export default function App() {
     showToast('Ingrediente removido do catálogo.', 'info');
   };
 
+  // Packaging actions
+  const handleSavePackaging = (packaging: PackagingItem) => {
+    setData((prev) => {
+      const packagings = prev.packagings || [];
+      const exists = packagings.some((p) => p.id === packaging.id);
+      let updatedPackagings: PackagingItem[];
+      if (exists) {
+        updatedPackagings = packagings.map((p) => (p.id === packaging.id ? packaging : p));
+      } else {
+        updatedPackagings = [packaging, ...packagings];
+      }
+
+      return {
+        ...prev,
+        packagings: updatedPackagings,
+      };
+    });
+
+    if (user) {
+      saveCloudPackaging(user.uid, packaging).catch((err) =>
+        console.error('Error saving packaging to cloud:', err)
+      );
+    }
+
+    showToast(`Embalagem "${packaging.name}" salva com sucesso!`);
+  };
+
+  const handleDeletePackaging = (id: string) => {
+    setData((prev) => ({
+      ...prev,
+      packagings: (prev.packagings || []).filter((p) => p.id !== id),
+    }));
+
+    if (user) {
+      deleteCloudPackaging(user.uid, id).catch((err) =>
+        console.error('Error deleting packaging from cloud:', err)
+      );
+    }
+
+    showToast('Embalagem removida do catálogo.', 'info');
+  };
+
+  const handleAddPackagingMovement = (movement: PackagingMovement) => {
+    setData((prev) => ({
+      ...prev,
+      packagingMovements: [movement, ...(prev.packagingMovements || [])],
+    }));
+
+    if (user) {
+      saveCloudPackagingMovement(user.uid, movement).catch((err) =>
+        console.error('Error saving packaging movement to cloud:', err)
+      );
+    }
+  };
+
   // Paste Recipe callback
   const handleRecipeCreatedFromPaste = (recipe: Recipe, newIngredients: Ingredient[]) => {
     setData((prev) => ({
@@ -521,6 +586,8 @@ export default function App() {
       ings: [],
       recs: [],
       orders: [],
+      packagings: [],
+      packagingMovements: [],
       cfg: { ...DEFAULT_CONFIG },
     };
     setData(empty);
@@ -532,10 +599,28 @@ export default function App() {
     const seed = getInitialSeedData();
     setData(seed);
     setActiveRecipe(null);
-    showToast('Receitas, encomendas e ingredientes de exemplo carregados!');
+    showToast('Receitas, encomendas, ingredientes e embalagens de exemplo carregados!');
   };
 
-  const handleNavigate = (tab: 'orders' | 'recs' | 'ings' | 'scale' | 'cfg' | 'dashboard') => {
+  // Shopping status & stock movements actions
+  const handleUpdateShoppingStatus = (itemId: string, status: PurchaseItemStatus) => {
+    setData((prev) => ({
+      ...prev,
+      shoppingStatuses: {
+        ...(prev.shoppingStatuses || {}),
+        [itemId]: status,
+      },
+    }));
+  };
+
+  const handleAddStockMovement = (movement: StockMovement) => {
+    setData((prev) => ({
+      ...prev,
+      stockMovements: [movement, ...(prev.stockMovements || [])],
+    }));
+  };
+
+  const handleNavigate = (tab: 'orders' | 'recs' | 'ings' | 'packagings' | 'scale' | 'cfg' | 'dashboard') => {
     setActiveTab(tab);
     if (tab !== 'recs') {
       setActiveRecipe(null);
@@ -629,12 +714,32 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'packagings' && (
+          <PackagingManager
+            packagings={data.packagings || []}
+            movements={data.packagingMovements || []}
+            recipes={data.recs || []}
+            onSavePackaging={handleSavePackaging}
+            onDeletePackaging={handleDeletePackaging}
+            onAddMovement={handleAddPackagingMovement}
+            onToast={showToast}
+          />
+        )}
+
         {activeTab === 'scale' && (
           <BatchScaler
             recipes={data.recs}
             ingredients={data.ings}
+            packagings={data.packagings || []}
             orders={data.orders || []}
             cfg={data.cfg}
+            shoppingStatuses={data.shoppingStatuses}
+            stockMovements={data.stockMovements}
+            packagingMovements={data.packagingMovements || []}
+            onUpdateShoppingStatus={handleUpdateShoppingStatus}
+            onAddStockMovement={handleAddStockMovement}
+            onSavePackaging={handleSavePackaging}
+            onAddPackagingMovement={handleAddPackagingMovement}
             initialRecipeId={scalingRecipeId}
             onOpenRecipe={handleOpenRecipe}
             onSaveIngredient={handleSaveIngredient}
@@ -649,6 +754,8 @@ export default function App() {
             orders={data.orders || []}
             recipes={data.recs}
             ingredients={data.ings}
+            packagings={data.packagings || []}
+            packagingMovements={data.packagingMovements || []}
             cfg={data.cfg}
             onNewOrder={handleNewOrder}
             onNavigateToOrders={() => handleNavigate('orders')}
