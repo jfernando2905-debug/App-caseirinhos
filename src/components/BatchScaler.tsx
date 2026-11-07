@@ -38,6 +38,7 @@ import {
   calculateElectricityCost,
 } from '../utils/calculations';
 import { NumericInput } from './NumericInput';
+import { ProductionGridPreviewModal } from './ProductionGridPreviewModal';
 
 interface BatchScalerProps {
   recipes: Recipe[];
@@ -48,6 +49,8 @@ interface BatchScalerProps {
   onOpenRecipe: (recipe: Recipe) => void;
   onSaveIngredient?: (ingredient: Ingredient) => void;
   onUpdateRecipe?: (recipe: Recipe) => void;
+  onUpdateStatus?: (orderId: string, newStatus: 'pendente' | 'pronto' | 'entregue') => void;
+  onToast?: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 type ScalerMode = 'manual' | 'orders' | 'shopping';
@@ -62,6 +65,8 @@ interface AggregatedIngredient {
   packagesNeeded: number;
   packageCost: number;
   surplusBase: number;
+  availableStockBaseQty?: number;
+  deficitBaseQty?: number;
   ing?: Ingredient;
   usedIn: { recipeName: string; count: number }[];
   isCakePackaging?: boolean;
@@ -88,6 +93,8 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
   initialRecipeId,
   onSaveIngredient,
   onUpdateRecipe,
+  onUpdateStatus,
+  onToast,
 }) => {
   // Mode switcher
   const [mode, setMode] = useState<ScalerMode>('orders');
@@ -110,6 +117,8 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
   const [purchasedIngredients, setPurchasedIngredients] = useState<Record<string, boolean>>({});
   const [copiedToast, setCopiedToast] = useState<boolean>(false);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [onlyShowDeficit, setOnlyShowDeficit] = useState<boolean>(true);
+  const [isPreviewGridOpen, setIsPreviewGridOpen] = useState<boolean>(false);
 
   // Shopping list customization & editing state
   const [customPackageCounts, setCustomPackageCounts] = useState<Record<string, number>>({});
@@ -377,8 +386,14 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
         const uPrice = getUnitPrice(data.ing);
         const proportionalCost = uPrice * data.baseQty;
 
-        // Commercial packages needed
-        let defaultPackagesNeeded = 1;
+        // Abater estoque disponível
+        const stockUnit = data.ing?.unit || data.baseUnit;
+        const stockFactor = UNIT_FACTORS[stockUnit] || 1;
+        const availableStockBaseQty = Math.max(0, (data.ing?.stock || 0) * stockFactor);
+        const deficitBaseQty = Math.max(0, data.baseQty - availableStockBaseQty);
+
+        // Commercial packages needed (based on deficit)
+        let defaultPackagesNeeded = 0;
         let packageCost = 0;
         let surplusBase = 0;
 
@@ -386,8 +401,10 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
           const packFactor = UNIT_FACTORS[data.ing.unit] || 1;
           const packBaseSize = data.ing.size * packFactor;
           if (packBaseSize > 0) {
-            defaultPackagesNeeded = Math.ceil(data.baseQty / packBaseSize);
+            defaultPackagesNeeded = deficitBaseQty > 0 ? Math.ceil(deficitBaseQty / packBaseSize) : 0;
           }
+        } else if (deficitBaseQty > 0) {
+          defaultPackagesNeeded = 1;
         }
 
         const packagesNeeded =
@@ -399,9 +416,9 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
           const packFactor = UNIT_FACTORS[data.ing.unit] || 1;
           const packBaseSize = data.ing.size * packFactor;
           packageCost = packagesNeeded * (data.ing.price || 0);
-          surplusBase = Math.max(0, packagesNeeded * packBaseSize - data.baseQty);
+          surplusBase = Math.max(0, (availableStockBaseQty + packagesNeeded * packBaseSize) - data.baseQty);
         } else {
-          packageCost = proportionalCost;
+          packageCost = deficitBaseQty > 0 ? uPrice * deficitBaseQty : 0;
         }
 
         const usedInArray = Array.from(data.usedIn.entries()).map(([recipeName, count]) => ({
@@ -419,6 +436,8 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
           packagesNeeded,
           packageCost,
           surplusBase,
+          availableStockBaseQty,
+          deficitBaseQty,
           ing: data.ing,
           usedIn: usedInArray,
         };
@@ -448,7 +467,12 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
 
         const baseQty = packData.totalQty;
         const packSize = syntheticIng.size > 0 ? syntheticIng.size : 1;
-        const defaultPackagesNeeded = Math.ceil(baseQty / packSize);
+        const stockUnit = syntheticIng.unit || 'un';
+        const stockFactor = UNIT_FACTORS[stockUnit] || 1;
+        const availableStockBaseQty = Math.max(0, (syntheticIng.stock || 0) * stockFactor);
+        const deficitBaseQty = Math.max(0, baseQty - availableStockBaseQty);
+
+        const defaultPackagesNeeded = deficitBaseQty > 0 ? Math.ceil(deficitBaseQty / packSize) : 0;
         const packagesNeeded =
           customPackageCounts[packData.id] !== undefined
             ? customPackageCounts[packData.id]
@@ -457,7 +481,7 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
         const uPrice = syntheticIng.price !== undefined ? syntheticIng.price : packData.unitPrice;
         const proportionalCost = baseQty * (uPrice / packSize);
         const packageCost = packagesNeeded * uPrice;
-        const surplusBase = Math.max(0, packagesNeeded * packSize - baseQty);
+        const surplusBase = Math.max(0, (availableStockBaseQty + packagesNeeded * packSize) - baseQty);
 
         const usedInArray = Array.from(packData.recipeNames.entries()).map(([recipeName, count]) => ({
           recipeName,
@@ -474,6 +498,8 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
           packagesNeeded,
           packageCost,
           surplusBase,
+          availableStockBaseQty,
+          deficitBaseQty,
           ing: syntheticIng,
           usedIn: usedInArray,
           isCakePackaging: true,
@@ -546,7 +572,12 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
       const proportionalCost = item.cost;
 
       const itemId = ing?.id || `manual-${idx}`;
-      let defaultPackagesNeeded = 1;
+      const stockUnit = ing?.unit || baseUnit;
+      const stockFactor = UNIT_FACTORS[stockUnit] || 1;
+      const availableStockBaseQty = Math.max(0, (ing?.stock || 0) * stockFactor);
+      const deficitBaseQty = Math.max(0, baseQty - availableStockBaseQty);
+
+      let defaultPackagesNeeded = 0;
       let packageCost = 0;
       let surplusBase = 0;
 
@@ -554,8 +585,10 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
         const packFactor = UNIT_FACTORS[ing.unit] || 1;
         const packBaseSize = ing.size * packFactor;
         if (packBaseSize > 0) {
-          defaultPackagesNeeded = Math.ceil(baseQty / packBaseSize);
+          defaultPackagesNeeded = deficitBaseQty > 0 ? Math.ceil(deficitBaseQty / packBaseSize) : 0;
         }
+      } else if (deficitBaseQty > 0) {
+        defaultPackagesNeeded = 1;
       }
 
       const packagesNeeded =
@@ -567,9 +600,9 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
         const packFactor = UNIT_FACTORS[ing.unit] || 1;
         const packBaseSize = ing.size * packFactor;
         packageCost = packagesNeeded * (ing.price || 0);
-        surplusBase = Math.max(0, packagesNeeded * packBaseSize - baseQty);
+        surplusBase = Math.max(0, (availableStockBaseQty + packagesNeeded * packBaseSize) - baseQty);
       } else {
-        packageCost = proportionalCost;
+        packageCost = deficitBaseQty > 0 ? proportionalCost : 0;
       }
 
       return {
@@ -582,6 +615,8 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
         packagesNeeded,
         packageCost,
         surplusBase,
+        availableStockBaseQty,
+        deficitBaseQty,
         ing,
         usedIn: [{ recipeName: manualBatchResult.recipe.name, count: safeCakeCount }],
       };
@@ -821,9 +856,19 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
   }, [shoppingItems]);
 
   const filteredShoppingItems = useMemo(() => {
-    if (categoryFilter === 'all') return shoppingItems;
-    return shoppingItems.filter((i) => i.category === categoryFilter);
-  }, [shoppingItems, categoryFilter]);
+    let list = shoppingItems;
+    if (onlyShowDeficit) {
+      list = list.filter(
+        (i) =>
+          (i.deficitBaseQty !== undefined ? i.deficitBaseQty > 0 : i.packagesNeeded > 0) ||
+          customPackageCounts[i.id] !== undefined
+      );
+    }
+    if (categoryFilter !== 'all') {
+      list = list.filter((i) => i.category === categoryFilter);
+    }
+    return list;
+  }, [shoppingItems, categoryFilter, onlyShowDeficit, customPackageCounts]);
 
   // Shopping list stats
   const totalShoppingItems = shoppingItems.length;
@@ -1212,17 +1257,29 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
                   Grade de Produção (Bolos a Assar)
                 </h3>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShoppingSource('orders');
-                  setMode('shopping');
-                }}
-                className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-xs transition-colors"
-              >
-                <ShoppingCart className="w-3.5 h-3.5" />
-                <span>Ver Lista de Compras deste Lote</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPreviewGridOpen(true)}
+                  className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-stone-800 dark:text-stone-200 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 rounded-xl transition-colors min-h-[36px]"
+                  title="Pré-visualizar grade de produção formatada para impressão A4 com caixas de marcação a caneta [ ]"
+                >
+                  <Printer className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>Imprimir / PDF da Grade</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShoppingSource('orders');
+                    setMode('shopping');
+                  }}
+                  className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-xs transition-colors min-h-[36px]"
+                >
+                  <ShoppingCart className="w-3.5 h-3.5" />
+                  <span>Ver Lista de Compras deste Lote</span>
+                </button>
+              </div>
             </div>
 
             {bakeItems.length === 0 ? (
@@ -1439,24 +1496,41 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
 
             {/* Shopping Action Strip */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-1 no-print">
-              {/* Category Filter */}
-              <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-stone-400" />
-                <span className="text-xs font-semibold text-stone-700 dark:text-stone-300">
-                  Categoria:
-                </span>
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="px-2.5 py-1.5 text-xs font-semibold bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-stone-800 dark:text-stone-200"
+              {/* Category Filter & Stock Abatement Toggle */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Stock Deduction Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setOnlyShowDeficit((prev) => !prev)}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all flex items-center gap-1.5 min-h-[36px] ${
+                    onlyShowDeficit
+                      ? 'bg-amber-100 text-amber-950 dark:bg-amber-950/80 dark:text-amber-200 border-amber-300 dark:border-amber-700/80'
+                      : 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 border-stone-200 dark:border-stone-700'
+                  }`}
+                  title="Abater a quantidade disponível no estoque das receitas necessárias"
                 >
-                  <option value="all">Todas as Categorias ({shoppingItems.length})</option>
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
+                  <Package className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>{onlyShowDeficit ? 'Apenas a Comprar (Estoque Abatido)' : 'Exibir Todos os Insumos'}</span>
+                </button>
+
+                <div className="flex items-center gap-1.5">
+                  <Filter className="w-4 h-4 text-stone-400" />
+                  <span className="text-xs font-semibold text-stone-700 dark:text-stone-300">
+                    Categoria:
+                  </span>
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="px-2.5 py-1.5 text-xs font-semibold bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-stone-800 dark:text-stone-200"
+                  >
+                    <option value="all">Todas as Categorias ({shoppingItems.length})</option>
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Action Buttons: WhatsApp & Bulk Check */}
@@ -1627,12 +1701,25 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
 
                           <div className="text-xs text-stone-500 dark:text-stone-400 mt-1 flex items-center gap-2 flex-wrap">
                             <span>
-                              {item.isCakePackaging ? 'Necessário para os bolos:' : 'Necessário na receita:'}{' '}
+                              {item.isCakePackaging ? 'Necessário:' : 'Necessidade total:'}{' '}
                               <strong>{formatFriendlyQty(item.baseQty, item.baseUnit, item.name)}</strong>
                             </span>
+
+                            {item.availableStockBaseQty !== undefined && item.availableStockBaseQty > 0 && (
+                              <span className="text-[11px] text-amber-800 dark:text-amber-300 font-bold bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                                📦 Em estoque: {formatFriendlyQty(item.availableStockBaseQty, item.baseUnit, item.name)}
+                              </span>
+                            )}
+
+                            {item.deficitBaseQty !== undefined && item.deficitBaseQty > 0 && item.availableStockBaseQty !== undefined && item.availableStockBaseQty > 0 && (
+                              <span className="text-[11px] text-rose-700 dark:text-rose-300 font-bold">
+                                🛒 Faltante: {formatFriendlyQty(item.deficitBaseQty, item.baseUnit, item.name)}
+                              </span>
+                            )}
+
                             {item.surplusBase > 0 && hasPackInfo && (
                               <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
-                                (Sobra estimada: {formatFriendlyQty(item.surplusBase, item.baseUnit, item.name)})
+                                (Sobra pós-compra: {formatFriendlyQty(item.surplusBase, item.baseUnit, item.name)})
                               </span>
                             )}
                             {item.isCakePackaging && item.usedIn && item.usedIn.length > 0 && (
@@ -2205,6 +2292,16 @@ export const BatchScaler: React.FC<BatchScalerProps> = ({
           </div>
         </div>
       )}
+
+      {/* Production Schedule Grid Preview & Print Modal */}
+      <ProductionGridPreviewModal
+        isOpen={isPreviewGridOpen}
+        onClose={() => setIsPreviewGridOpen(false)}
+        orders={orders}
+        recipes={recipes}
+        onUpdateStatus={onUpdateStatus}
+        onToast={onToast}
+      />
     </div>
   );
 };

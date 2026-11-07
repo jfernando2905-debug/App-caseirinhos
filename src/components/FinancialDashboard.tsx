@@ -46,6 +46,7 @@ import { getMonthlyProfitHistory, calculateOrderCostAndProfit, MonthlyProfitData
 import { formatCurrency, formatNumber, calculateSizeMetrics } from '../utils/calculations';
 import { formatPaymentReminderWhatsApp, formatDatePtBR, formatItemText } from '../utils/orderShare';
 import { downloadFinancialReportPdf } from '../utils/financialPdf';
+import { DashboardReportsModal } from './DashboardReportsModal';
 
 interface FinancialDashboardProps {
   orders: Order[];
@@ -79,6 +80,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
   const [receberFilter, setReceberFilter] = useState<'todas' | 'entregues' | 'abertas' | 'pagas'>('todas');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
+  const [isDashboardReportsOpen, setIsDashboardReportsOpen] = useState<boolean>(false);
 
   // 1. Calculate overall financial metrics
   const {
@@ -496,15 +498,25 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Botão de Relatórios Sintéticos e Analíticos com Pré-Visualização */}
+          <button
+            onClick={() => setIsDashboardReportsOpen(true)}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-2xs transition-all active:scale-[0.98] min-h-[40px] cursor-pointer"
+            title="Visualizar relatórios sintéticos (resumo de resultados) e analíticos (detalhe por cliente/produto) antes de imprimir ou exportar PDF"
+          >
+            <BarChart3 className="w-4 h-4 shrink-0" />
+            <span>Relatórios Sintético / Analítico</span>
+          </button>
+
           {/* Botão de Exportação do Resumo Financeiro em PDF */}
           <button
             onClick={handleExportPdf}
             disabled={isExportingPdf}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-amber-950 dark:text-amber-200 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/80 dark:hover:bg-amber-900/80 border border-amber-300 dark:border-amber-700/80 rounded-xl shadow-2xs transition-all active:scale-[0.98] min-h-[40px] cursor-pointer disabled:opacity-50"
-            title="Exportar demonstrativo financeiro completo (lucro por período, custos fixos e variáveis) em PDF para impressão ou envio"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xs transition-all active:scale-[0.98] min-h-[40px] cursor-pointer disabled:opacity-50"
+            title="Exportar demonstrativo financeiro completo em PDF"
           >
             <FileDown className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
-            <span>{isExportingPdf ? 'Gerando PDF...' : 'Exportar PDF Financeiro'}</span>
+            <span>{isExportingPdf ? 'Gerando PDF...' : 'Exportar PDF'}</span>
           </button>
 
           <button
@@ -1281,6 +1293,17 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
           )}
         </div>
       )}
+
+      {/* Dashboard Reports Modal (Sintético & Analítico) */}
+      <DashboardReportsModal
+        isOpen={isDashboardReportsOpen}
+        onClose={() => setIsDashboardReportsOpen(false)}
+        orders={orders}
+        recipes={recipes}
+        ingredients={ingredients}
+        cfg={cfg}
+        onToast={onToast}
+      />
     </div>
   );
 };

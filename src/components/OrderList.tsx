@@ -28,6 +28,7 @@ import {
 import { isOrderToday, isOrderTomorrow, isOrderLate } from '../utils/dateUtils';
 import { formatCurrency } from '../utils/calculations';
 import { OrderPreviewModal } from './OrderPreviewModal';
+import { OrdersReportPreviewModal } from './OrdersReportPreviewModal';
 
 interface OrderListProps {
   orders: Order[];
@@ -56,6 +57,7 @@ export const OrderList: React.FC<OrderListProps> = ({
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [previewOrder, setPreviewOrder] = useState<Order | null>(null);
   const [deliveryModalOrder, setDeliveryModalOrder] = useState<Order | null>(null);
+  const [isReportPreviewOpen, setIsReportPreviewOpen] = useState<boolean>(false);
 
   // Set of collapsed order IDs (persisted in localStorage)
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
@@ -145,18 +147,7 @@ export const OrderList: React.FC<OrderListProps> = ({
   };
 
   const handleReportPdf = () => {
-    try {
-      const label =
-        filter === 'abertas'
-          ? 'Encomendas Abertas'
-          : filter === 'entregues'
-          ? 'Encomendas Entregues'
-          : 'Todas as Encomendas';
-      generateOrdersReportPdf(currentList, label);
-      onToast(`Relatório de ${label} em PDF gerado e baixado!`);
-    } catch (err: any) {
-      onToast('Erro ao gerar relatório em PDF: ' + err.message, 'error');
-    }
+    setIsReportPreviewOpen(true);
   };
 
   return (
@@ -777,6 +768,14 @@ export const OrderList: React.FC<OrderListProps> = ({
         order={previewOrder}
         isOpen={Boolean(previewOrder)}
         onClose={() => setPreviewOrder(null)}
+        onToast={onToast}
+      />
+
+      {/* Full Orders Report Preview Modal */}
+      <OrdersReportPreviewModal
+        isOpen={isReportPreviewOpen}
+        onClose={() => setIsReportPreviewOpen(false)}
+        orders={orders}
         onToast={onToast}
       />
     </div>

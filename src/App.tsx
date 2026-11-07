@@ -642,6 +642,8 @@ export default function App() {
             onOpenRecipe={handleOpenRecipe}
             onSaveIngredient={handleSaveIngredient}
             onUpdateRecipe={handleUpdateRecipe}
+            onUpdateStatus={handleUpdateOrderStatus}
+            onToast={showToast}
           />
         )}
 
