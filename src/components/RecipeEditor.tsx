@@ -29,6 +29,7 @@ import {
 import { generateRecipePdf } from '../utils/recipePdf';
 import { uid } from '../utils/storage';
 import { NumericInput } from './NumericInput';
+import { IngredientFormModal } from './IngredientFormModal';
 
 interface RecipeEditorProps {
   recipe: Recipe;
@@ -37,7 +38,8 @@ interface RecipeEditorProps {
   onUpdateRecipe: (updated: Recipe) => void;
   onDeleteRecipe: (id: string) => void;
   onBack: () => void;
-  onOpenNewIngredientModal: () => void;
+  onSaveIngredient: (ingredient: Ingredient) => void;
+  onOpenNewIngredientModal?: () => void;
   onPrintRecipe: (recipe: Recipe) => void;
 }
 
@@ -48,6 +50,7 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
   onUpdateRecipe,
   onDeleteRecipe,
   onBack,
+  onSaveIngredient,
   onOpenNewIngredientModal,
   onPrintRecipe,
 }) => {
@@ -55,6 +58,7 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
   const [scaleSizeIndex, setScaleSizeIndex] = useState<number>(0);
   const [scaleCakeCount, setScaleCakeCount] = useState<number>(1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
+  const [isNewIngModalOpen, setIsNewIngModalOpen] = useState<boolean>(false);
 
   // Update recipe field helper
   const updateField = <K extends keyof Recipe>(field: K, value: Recipe[K]) => {
@@ -72,6 +76,24 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
       qty: 100,
       unit: firstIng ? firstIng.unit : 'g',
     };
+    updateField('items', [...(recipe.items || []), newItem]);
+  };
+
+  const handleSaveNewIngredient = (
+    newIng: Ingredient,
+    recipeUsage?: { qty: number; unit: Unit }
+  ) => {
+    onSaveIngredient(newIng);
+
+    const defaultQty = recipeUsage ? recipeUsage.qty : (newIng.unit === 'kg' ? 100 : (newIng.unit === 'L' ? 100 : 1));
+    const defaultUnit = recipeUsage ? recipeUsage.unit : (newIng.unit === 'kg' ? 'g' : (newIng.unit === 'L' ? 'ml' : newIng.unit));
+
+    const newItem: RecipeItem = {
+      ing: newIng.id,
+      qty: defaultQty,
+      unit: defaultUnit,
+    };
+
     updateField('items', [...(recipe.items || []), newItem]);
   };
 
@@ -421,10 +443,10 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
               </span>
             </div>
             <button
-              onClick={onOpenNewIngredientModal}
+              onClick={() => setIsNewIngModalOpen(true)}
               className="px-3 py-1.5 text-xs font-semibold text-rose-900 bg-rose-200/70 hover:bg-rose-200 rounded-lg self-start sm:self-auto min-h-[36px]"
             >
-              Editar Ingredientes
+              Adicionar Novo Ingrediente
             </button>
           </div>
         )}
@@ -518,10 +540,11 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
               </button>
 
               <button
-                onClick={onOpenNewIngredientModal}
-                className="text-xs text-amber-800 hover:underline font-medium min-h-[40px] flex items-center"
+                onClick={() => setIsNewIngModalOpen(true)}
+                className="text-xs text-amber-800 hover:underline font-medium min-h-[40px] flex items-center gap-1"
               >
-                + Criar novo ingrediente no catálogo
+                <Plus className="w-3.5 h-3.5 text-amber-700" />
+                <span>Adicionar novo ingrediente no catálogo</span>
               </button>
             </div>
           </div>
@@ -935,6 +958,14 @@ export const RecipeEditor: React.FC<RecipeEditorProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Modal for adding a new ingredient directly without leaving recipe */}
+      <IngredientFormModal
+        isOpen={isNewIngModalOpen}
+        onClose={() => setIsNewIngModalOpen(false)}
+        onSave={handleSaveNewIngredient}
+        isForRecipe={true}
+      />
     </div>
   );
 };

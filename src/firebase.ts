@@ -13,7 +13,8 @@ async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error: any) {
-    if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
+    const msg = String(error?.message || error || '').toLowerCase();
+    if (error?.name === 'AbortError' || error?.code === 'cancelled' || msg.includes('abort')) {
       return;
     }
     if (error instanceof Error && error.message.includes('the client is offline')) {
@@ -50,6 +51,13 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
+  const rawMsg = String((error as any)?.message || error || '').toLowerCase();
+  const isAbort = (error as any)?.name === 'AbortError' || (error as any)?.code === 'cancelled' || rawMsg.includes('abort');
+  
+  if (isAbort) {
+    throw error;
+  }
+
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {

@@ -599,10 +599,7 @@ export default function App() {
                 onUpdateRecipe={handleUpdateRecipe}
                 onDeleteRecipe={handleDeleteRecipe}
                 onBack={() => setActiveRecipe(null)}
-                onOpenNewIngredientModal={() => {
-                  setActiveRecipe(null);
-                  setActiveTab('ings');
-                }}
+                onSaveIngredient={handleSaveIngredient}
                 onPrintRecipe={(rec) => setPrintModalRecipe(rec)}
               />
             ) : (
