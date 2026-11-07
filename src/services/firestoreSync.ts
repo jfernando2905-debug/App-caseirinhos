@@ -166,6 +166,8 @@ export function subscribeToUserData(
           unit: unit,
           category: data.category || (isBanana ? 'Hortifrúti' : undefined),
           hist: Array.isArray(data.hist) ? data.hist : [],
+          stock: typeof data.stock === 'number' ? data.stock : undefined,
+          minStock: typeof data.minStock === 'number' ? data.minStock : undefined,
         });
       });
       callbacks.onIngredients(items);

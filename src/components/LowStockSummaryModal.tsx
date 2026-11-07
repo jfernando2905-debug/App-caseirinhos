@@ -285,6 +285,7 @@ export const LowStockSummaryModal: React.FC<LowStockSummaryModalProps> = ({
                                     <div className="flex items-center gap-1 bg-white dark:bg-stone-800 p-0.5 rounded-lg border border-stone-200 dark:border-stone-700">
                                       <button
                                         type="button"
+                                        onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
                                         onClick={(e) => handleQuickAdjustStock(e, item.ingredient, -getStepForUnit(item.ingredient.unit))}
                                         disabled={(item.ingredient.stock ?? 0) <= 0}
                                         className="w-6 h-6 rounded flex items-center justify-center font-bold text-xs bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 text-stone-700 dark:text-stone-200 disabled:opacity-30 cursor-pointer"
@@ -297,6 +298,7 @@ export const LowStockSummaryModal: React.FC<LowStockSummaryModalProps> = ({
                                       </span>
                                       <button
                                         type="button"
+                                        onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
                                         onClick={(e) => handleQuickAdjustStock(e, item.ingredient, getStepForUnit(item.ingredient.unit))}
                                         className="w-6 h-6 rounded flex items-center justify-center font-bold text-xs bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 text-stone-700 dark:text-stone-200 cursor-pointer"
                                         title="Adicionar ao estoque"
@@ -380,6 +382,7 @@ export const LowStockSummaryModal: React.FC<LowStockSummaryModalProps> = ({
                                     <div className="flex items-center gap-1 bg-white dark:bg-stone-800 p-0.5 rounded-lg border border-stone-200 dark:border-stone-700">
                                       <button
                                         type="button"
+                                        onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
                                         onClick={(e) => handleQuickAdjustStock(e, item.ingredient, -getStepForUnit(item.ingredient.unit))}
                                         disabled={(item.ingredient.stock ?? 0) <= 0}
                                         className="w-6 h-6 rounded flex items-center justify-center font-bold text-xs bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 text-stone-700 dark:text-stone-200 disabled:opacity-30 cursor-pointer"
@@ -392,6 +395,7 @@ export const LowStockSummaryModal: React.FC<LowStockSummaryModalProps> = ({
                                       </span>
                                       <button
                                         type="button"
+                                        onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
                                         onClick={(e) => handleQuickAdjustStock(e, item.ingredient, getStepForUnit(item.ingredient.unit))}
                                         className="w-6 h-6 rounded flex items-center justify-center font-bold text-xs bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 text-stone-700 dark:text-stone-200 cursor-pointer"
                                         title="Adicionar ao estoque"

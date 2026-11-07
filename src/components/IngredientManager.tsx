@@ -482,6 +482,7 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
                       >
                         <button
                           type="button"
+                          onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
                           onClick={(e) => handleQuickAdjustStock(e, ing, -getStepForUnit(ing.unit))}
                           disabled={(ing.stock ?? 0) <= 0}
                           className="w-6 h-6 rounded-md bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 disabled:opacity-30 text-stone-700 dark:text-stone-300 flex items-center justify-center font-bold text-xs transition-colors cursor-pointer"
@@ -504,6 +505,7 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
 
                         <button
                           type="button"
+                          onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
                           onClick={(e) => handleQuickAdjustStock(e, ing, getStepForUnit(ing.unit))}
                           className="w-6 h-6 rounded-md bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 flex items-center justify-center font-bold text-xs transition-colors cursor-pointer"
                           title={`Adicionar +${getStepForUnit(ing.unit)} ${ing.unit}`}
@@ -660,16 +662,41 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
                     <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
                       Quantidade Atual em Estoque ({formUnit})
                     </label>
-                    <NumericInput
-                      value={formStock}
-                      onChange={(val) => setFormStock(val)}
-                      placeholder="0"
-                      min={0}
-                      maxDecimals={3}
-                      className="px-3 py-2 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-bold tabular-nums text-right focus:border-amber-500 min-h-[42px]"
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => setFormStock((prev) => Math.max(0, Math.round((prev - getStepForUnit(formUnit)) * 1000) / 1000))}
+                        disabled={formStock <= 0}
+                        className="w-10 h-10 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 disabled:opacity-30 text-stone-800 dark:text-stone-200 font-bold text-lg flex items-center justify-center transition-colors min-h-[42px] cursor-pointer shrink-0"
+                        title={`Diminuir -${getStepForUnit(formUnit)} ${formUnit}`}
+                      >
+                        -
+                      </button>
+
+                      <div className="flex-1">
+                        <NumericInput
+                          value={formStock}
+                          onChange={(val) => setFormStock(val)}
+                          placeholder="0"
+                          min={0}
+                          maxDecimals={3}
+                          className="px-3 py-2 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-bold tabular-nums text-right focus:border-amber-500 min-h-[42px]"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => setFormStock((prev) => Math.round((prev + getStepForUnit(formUnit)) * 1000) / 1000)}
+                        className="w-10 h-10 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 font-bold text-lg flex items-center justify-center transition-colors min-h-[42px] cursor-pointer shrink-0"
+                        title={`Adicionar +${getStepForUnit(formUnit)} ${formUnit}`}
+                      >
+                        +
+                      </button>
+                    </div>
                     <span className="text-[11px] text-stone-500 dark:text-stone-400 block mt-1">
-                      Você pode alterar diretamente no card com os botões + e -.
+                      Ajuste com os botões + / - ou digite a quantidade.
                     </span>
                   </div>
 
@@ -677,16 +704,41 @@ export const IngredientManager: React.FC<IngredientManagerProps> = ({
                     <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
                       Estoque Mínimo Desejado ({formUnit})
                     </label>
-                    <NumericInput
-                      value={formMinStock}
-                      onChange={(val) => setFormMinStock(val)}
-                      placeholder="0"
-                      min={0}
-                      maxDecimals={3}
-                      className="px-3 py-2 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-bold tabular-nums text-right focus:border-amber-500 min-h-[42px]"
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => setFormMinStock((prev) => Math.max(0, Math.round((prev - getStepForUnit(formUnit)) * 1000) / 1000))}
+                        disabled={formMinStock <= 0}
+                        className="w-10 h-10 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 disabled:opacity-30 text-stone-800 dark:text-stone-200 font-bold text-lg flex items-center justify-center transition-colors min-h-[42px] cursor-pointer shrink-0"
+                        title={`Diminuir -${getStepForUnit(formUnit)} ${formUnit}`}
+                      >
+                        -
+                      </button>
+
+                      <div className="flex-1">
+                        <NumericInput
+                          value={formMinStock}
+                          onChange={(val) => setFormMinStock(val)}
+                          placeholder="0"
+                          min={0}
+                          maxDecimals={3}
+                          className="px-3 py-2 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-bold tabular-nums text-right focus:border-amber-500 min-h-[42px]"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => setFormMinStock((prev) => Math.round((prev + getStepForUnit(formUnit)) * 1000) / 1000)}
+                        className="w-10 h-10 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 font-bold text-lg flex items-center justify-center transition-colors min-h-[42px] cursor-pointer shrink-0"
+                        title={`Adicionar +${getStepForUnit(formUnit)} ${formUnit}`}
+                      >
+                        +
+                      </button>
+                    </div>
                     <span className="text-[11px] text-stone-500 dark:text-stone-400 block mt-1">
-                      Se deixar 0, o sistema usa o consumo máximo das receitas.
+                      Se deixar 0, usa o consumo máximo das receitas.
                     </span>
                   </div>
                 </div>

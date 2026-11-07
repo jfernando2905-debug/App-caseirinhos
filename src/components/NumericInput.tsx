@@ -58,9 +58,13 @@ export const NumericInput: React.FC<NumericInputProps> = ({
 
   // Sync external changes (e.g. from stepper buttons or external prop updates)
   useEffect(() => {
-    const currentNum = text === '' || text === ',' ? 0 : parseFloat(text.replace(',', '.'));
-    if (!isFocused || isNaN(currentNum) || Math.abs(currentNum - (value || 0)) > 0.00001) {
+    if (!isFocused) {
       setText(formatInitial(value));
+    } else {
+      const currentNum = text === '' || text === ',' ? 0 : parseFloat(text.replace(',', '.'));
+      if (isNaN(currentNum) || Math.abs(currentNum - (value || 0)) > 0.00001) {
+        setText(formatInitial(value));
+      }
     }
   }, [value, maxDecimals, allowDecimals]);
 
@@ -124,8 +128,11 @@ export const NumericInput: React.FC<NumericInputProps> = ({
     isInternalChange.current = false;
 
     if (!text.trim() || text === ',') {
-      setText(formatInitial(value));
-      onChange(value || 0);
+      const fallback = min !== undefined ? min : 0;
+      setText(formatInitial(fallback));
+      if (Math.abs(fallback - (value || 0)) > 0.00001) {
+        onChange(fallback);
+      }
       return;
     }
 
@@ -133,14 +140,15 @@ export const NumericInput: React.FC<NumericInputProps> = ({
     let num = parseFloat(clean);
     if (isNaN(num)) {
       setText(formatInitial(value));
-      onChange(value || 0);
       return;
     }
 
     if (min !== undefined && num < min) num = min;
     if (max !== undefined && num > max) num = max;
 
-    onChange(num);
+    if (Math.abs(num - (value || 0)) > 0.00001) {
+      onChange(num);
+    }
     setText(formatInitial(num));
   };
 
