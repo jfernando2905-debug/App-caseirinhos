@@ -306,15 +306,16 @@ export const OrderList: React.FC<OrderListProps> = ({
                     : 'border-stone-200 dark:border-stone-800'
                 } ${isCollapsed ? 'p-3.5 sm:p-4' : 'p-4 sm:p-5'}`}
               >
-                {/* Header row: Click to expand / collapse */}
+                {/* Header: Click to expand / collapse */}
                 <div
                   onClick={() => toggleCardCollapse(order.id)}
-                  className="flex items-start sm:items-center justify-between gap-2.5 cursor-pointer select-none"
+                  className="cursor-pointer select-none space-y-2"
                   title={isCollapsed ? 'Clique para expandir os detalhes da encomenda' : 'Clique para recolher'}
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 font-display">
+                  {/* Top Tier: Client name and phone on left, Total Value and Chevron on right */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <h3 className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 font-display truncate">
                         {order.cliente}
                       </h3>
 
@@ -322,16 +323,39 @@ export const OrderList: React.FC<OrderListProps> = ({
                         <a
                           href={`tel:${order.telefone.replace(/\D/g, '')}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="text-stone-400 hover:text-amber-700 dark:hover:text-amber-400 transition-colors p-0.5"
-                          title="Ligar para o cliente"
+                          className="text-stone-400 hover:text-amber-700 dark:hover:text-amber-400 transition-colors p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 shrink-0"
+                          title={`Ligar para ${order.telefone}`}
                         >
                           <Phone className="w-3.5 h-3.5" />
                         </a>
                       )}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-stone-600 dark:text-stone-400 mt-0.5">
-                      <span className="flex items-center gap-1 font-semibold text-stone-800 dark:text-stone-200">
+                    <div className="flex items-center gap-2 shrink-0">
+                      {order.valor !== undefined && order.valor !== null && order.valor > 0 && (
+                        <span className="text-sm sm:text-base font-extrabold text-stone-900 dark:text-stone-100 tabular-nums">
+                          {formatCurrency(order.valor)}
+                        </span>
+                      )}
+
+                      {/* Chevron toggle icon */}
+                      <div
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors"
+                        title={isCollapsed ? 'Expandir card' : 'Recolher card'}
+                      >
+                        <ChevronDown
+                          className={`w-4 h-4 transition-transform duration-200 ${
+                            isCollapsed ? '' : 'rotate-180'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom Tier: Delivery Date/Time on left, Payment & Status badges on right */}
+                  <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 pt-0.5">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-stone-600 dark:text-stone-400">
+                      <span className="flex items-center gap-1.5 font-semibold text-stone-800 dark:text-stone-200">
                         <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
                         <span>{formatDatePtBR(order.entrega)}</span>
                         {order.hora && (
@@ -340,83 +364,64 @@ export const OrderList: React.FC<OrderListProps> = ({
                       </span>
 
                       {isLate && (
-                        <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-100/80 dark:bg-rose-950/70 px-1.5 py-0.2 rounded">
+                        <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-100/80 dark:bg-rose-950/70 px-2 py-0.5 rounded-md">
                           (atrasada)
                         </span>
                       )}
 
                       {isToday && (
-                        <span className="text-[10px] font-bold text-amber-800 dark:text-amber-400 bg-amber-100/80 dark:bg-amber-950/70 px-1.5 py-0.2 rounded">
+                        <span className="text-[10px] font-bold text-amber-800 dark:text-amber-400 bg-amber-100/80 dark:bg-amber-950/70 px-2 py-0.5 rounded-md">
                           (para hoje)
                         </span>
                       )}
 
                       {isCollapsed && items.length > 0 && (
                         <span className="text-[11px] text-stone-500 dark:text-stone-400 hidden xs:inline">
-                          · {items.length} {items.length === 1 ? 'item' : 'itens'}
+                          · {items.length} {items.length === 1 ? 'bolo' : 'bolos'}
                         </span>
                       )}
                     </div>
-                  </div>
 
-                  {/* Header Right: Value, Payment Badge, Status Badge & Collapse Chevron */}
-                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                    {order.valor !== undefined && order.valor !== null && order.valor > 0 && (
-                      <span className="text-xs sm:text-sm font-bold text-stone-900 dark:text-stone-100 tabular-nums">
-                        {formatCurrency(order.valor)}
-                      </span>
-                    )}
+                    {/* Payment Badge & Status Badge */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {order.valor !== undefined && order.valor > 0 && (
+                        order.pago ? (
+                          <span
+                            className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 shrink-0"
+                            title="Pagamento quitado"
+                          >
+                            <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                            <span>Pago</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onUpdatePayment) onUpdatePayment(order.id, true);
+                            }}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 hover:bg-emerald-100 text-amber-900 hover:text-emerald-900 dark:bg-amber-950/80 dark:hover:bg-emerald-950/80 dark:text-amber-300 dark:hover:text-emerald-300 border border-amber-300 hover:border-emerald-400 dark:border-amber-800 dark:hover:border-emerald-700 transition-colors shrink-0 cursor-pointer shadow-2xs"
+                            title={`A receber: ${formatCurrency(restante)} - Clique para dar baixa`}
+                          >
+                            <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                            <span>A Receber</span>
+                            <span className="text-[10px] font-extrabold underline decoration-amber-500 ml-0.5">Baixar</span>
+                          </button>
+                        )
+                      )}
 
-                    {/* Payment Badge */}
-                    {order.valor !== undefined && order.valor > 0 && (
-                      order.pago ? (
-                        <span
-                          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 shrink-0"
-                          title="Pagamento quitado"
-                        >
-                          <Check className="w-3 h-3" />
-                          <span className="hidden sm:inline">Pago</span>
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (onUpdatePayment) onUpdatePayment(order.id, true);
-                          }}
-                          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 hover:bg-emerald-100 text-amber-800 hover:text-emerald-800 dark:bg-amber-950/80 dark:hover:bg-emerald-950/80 dark:text-amber-300 dark:hover:text-emerald-300 border border-amber-300 hover:border-emerald-400 dark:border-amber-800 dark:hover:border-emerald-700 transition-colors shrink-0 cursor-pointer"
-                          title={`A receber: ${formatCurrency(restante)} - Clique para dar baixa`}
-                        >
-                          <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                          <span>A Receber</span>
-                          <span className="text-[9px] font-bold underline ml-0.5">Baixar</span>
-                        </button>
-                      )
-                    )}
-
-                    {/* Status Badge */}
-                    <span
-                      className={`text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full uppercase tracking-wider shrink-0 border ${
-                        order.status === 'entregue'
-                          ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
-                          : order.status === 'pronto'
-                          ? 'bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-800'
-                          : 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800'
-                      }`}
-                    >
-                      {order.status}
-                    </span>
-
-                    {/* Chevron toggle icon */}
-                    <div
-                      className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors"
-                      title={isCollapsed ? 'Expandir card' : 'Recolher card'}
-                    >
-                      <ChevronDown
-                        className={`w-4 h-4 transition-transform duration-200 ${
-                          isCollapsed ? '' : 'rotate-180'
+                      {/* Status Badge */}
+                      <span
+                        className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider shrink-0 border ${
+                          order.status === 'entregue'
+                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                            : order.status === 'pronto'
+                            ? 'bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-800'
+                            : 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800'
                         }`}
-                      />
+                      >
+                        {order.status}
+                      </span>
                     </div>
                   </div>
                 </div>

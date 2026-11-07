@@ -165,7 +165,7 @@ export const Header: React.FC<HeaderProps> = ({
             title="Cadastrar nova encomenda"
           >
             <Plus className="w-3.5 h-3.5 shrink-0" />
-            <span>+ Encomenda</span>
+            <span>Encomenda</span>
           </button>
 
           {/* Hamburger Menu Button */}
