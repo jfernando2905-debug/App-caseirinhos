@@ -1,4 +1,5 @@
 import { AppData, Ingredient, Recipe, AppSettings, Unit } from '../types';
+import { getLocalDateStr, getTomorrowDateStr } from './dateUtils';
 
 export const STORAGE_KEY = 'custo-receitas-v1';
 
@@ -213,12 +214,11 @@ export function getInitialSeedData(): AppData {
     },
   ];
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const tomorrowDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  const tomorrowStr = tomorrowDate.toISOString().slice(0, 10);
+  const todayStr = getLocalDateStr();
+  const tomorrowStr = getTomorrowDateStr();
 
   const formatDateOffset = (daysAgo: number) => {
-    return new Date(now - daysAgo * day).toISOString().slice(0, 10);
+    return getLocalDateStr(new Date(now - daysAgo * day));
   };
 
   const orders = [

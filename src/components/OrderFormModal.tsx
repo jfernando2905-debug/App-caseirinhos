@@ -18,6 +18,7 @@ import { CAKE_TYPES, CAKE_SIZES, CAKE_FLAVORS } from '../utils/orderShare';
 import { NumericInput } from './NumericInput';
 import { uid } from '../utils/storage';
 import { calculateSizeMetrics, formatCurrency } from '../utils/calculations';
+import { getLocalDateStr } from '../utils/dateUtils';
 
 interface OrderFormModalProps {
   order: Order | null;
@@ -111,7 +112,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
   onSave,
 }) => {
   const isEditing = !!order;
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getLocalDateStr();
 
   const [cliente, setCliente] = useState<string>(order ? order.cliente : '');
   const [telefone, setTelefone] = useState<string>(order ? order.telefone || '' : '');

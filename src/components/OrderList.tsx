@@ -25,6 +25,7 @@ import {
   sendOrderWhatsApp,
   generateOrdersReportPdf,
 } from '../utils/orderShare';
+import { isOrderToday, isOrderTomorrow, isOrderLate } from '../utils/dateUtils';
 import { formatCurrency } from '../utils/calculations';
 import { OrderPreviewModal } from './OrderPreviewModal';
 
@@ -78,8 +79,8 @@ export const OrderList: React.FC<OrderListProps> = ({
   const abertas = sortedAll.filter((o) => o.status !== 'entregue');
   const entregues = sortedAll.filter((o) => o.status === 'entregue').reverse();
 
-  const paraHojeCount = abertas.filter((o) => o.entrega === todayStr).length;
-  const atrasadasCount = abertas.filter((o) => o.entrega && o.entrega < todayStr).length;
+  const paraHojeCount = abertas.filter((o) => isOrderToday(o.entrega)).length;
+  const atrasadasCount = abertas.filter((o) => isOrderLate(o.entrega)).length;
 
   const currentList =
     filter === 'abertas' ? abertas : filter === 'entregues' ? entregues : sortedAll;
@@ -286,8 +287,9 @@ export const OrderList: React.FC<OrderListProps> = ({
       ) : (
         <div className="space-y-3">
           {currentList.map((order) => {
-            const isLate = order.status !== 'entregue' && order.entrega && order.entrega < todayStr;
-            const isToday = order.status !== 'entregue' && order.entrega === todayStr;
+            const isLate = order.status !== 'entregue' && isOrderLate(order.entrega);
+            const isToday = order.status !== 'entregue' && isOrderToday(order.entrega);
+            const isTomorrow = order.status !== 'entregue' && isOrderTomorrow(order.entrega);
             const items = order.itens && order.itens.length > 0 ? order.itens : [];
             const isCollapsed = collapsedIds.has(order.id);
             const restante =
@@ -303,6 +305,8 @@ export const OrderList: React.FC<OrderListProps> = ({
                     ? 'border-rose-300 dark:border-rose-900/60 bg-rose-50/15 dark:bg-rose-950/20'
                     : isToday
                     ? 'border-amber-300 dark:border-amber-900/60 bg-amber-50/15 dark:bg-amber-950/20'
+                    : isTomorrow
+                    ? 'border-sky-300 dark:border-sky-900/60 bg-sky-50/10 dark:bg-sky-950/20'
                     : 'border-stone-200 dark:border-stone-800'
                 } ${isCollapsed ? 'p-3.5 sm:p-4' : 'p-4 sm:p-5'}`}
               >
@@ -372,6 +376,12 @@ export const OrderList: React.FC<OrderListProps> = ({
                       {isToday && (
                         <span className="text-[10px] font-bold text-amber-800 dark:text-amber-400 bg-amber-100/80 dark:bg-amber-950/70 px-2 py-0.5 rounded-md">
                           (para hoje)
+                        </span>
+                      )}
+
+                      {isTomorrow && (
+                        <span className="text-[10px] font-bold text-sky-800 dark:text-sky-300 bg-sky-100/80 dark:bg-sky-950/70 px-2 py-0.5 rounded-md">
+                          (para amanhã)
                         </span>
                       )}
 

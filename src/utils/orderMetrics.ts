@@ -1,5 +1,6 @@
 import { Order, Recipe, Ingredient, AppSettings } from '../types';
 import { calculateSizeMetrics } from './calculations';
+import { getLocalDateStr } from './dateUtils';
 
 export interface MonthlyProfitData {
   monthKey: string; // '2026-07'
@@ -134,9 +135,9 @@ export function getMonthlyProfitHistory(
     let dateStr = order.entrega;
     if (!dateStr || dateStr.length < 7) {
       if (order.criadoEm) {
-        dateStr = new Date(order.criadoEm).toISOString().slice(0, 10);
+        dateStr = getLocalDateStr(new Date(order.criadoEm));
       } else {
-        dateStr = new Date().toISOString().slice(0, 10);
+        dateStr = getLocalDateStr();
       }
     }
 

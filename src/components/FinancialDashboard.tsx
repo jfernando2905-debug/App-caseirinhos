@@ -39,11 +39,13 @@ import {
   AlertCircle,
   AlertTriangle,
   RotateCcw,
+  FileDown,
 } from 'lucide-react';
 import { Order, Recipe, Ingredient, AppSettings } from '../types';
 import { getMonthlyProfitHistory, calculateOrderCostAndProfit, MonthlyProfitData } from '../utils/orderMetrics';
 import { formatCurrency, formatNumber, calculateSizeMetrics } from '../utils/calculations';
 import { formatPaymentReminderWhatsApp, formatDatePtBR, formatItemText } from '../utils/orderShare';
+import { downloadFinancialReportPdf } from '../utils/financialPdf';
 
 interface FinancialDashboardProps {
   orders: Order[];
@@ -76,6 +78,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
   const [showMonthlyTable, setShowMonthlyTable] = useState<boolean>(true);
   const [receberFilter, setReceberFilter] = useState<'todas' | 'entregues' | 'abertas' | 'pagas'>('todas');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
 
   // 1. Calculate overall financial metrics
   const {
@@ -218,6 +221,29 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
       const cleanPhone = order.telefone.replace(/\D/g, '');
       const fullPhone = cleanPhone.length <= 11 ? `55${cleanPhone}` : cleanPhone;
       window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(text)}`, '_blank');
+    }
+  };
+
+  const handleExportPdf = () => {
+    setIsExportingPdf(true);
+    try {
+      downloadFinancialReportPdf({
+        orders,
+        recipes,
+        ingredients,
+        cfg,
+        storeName: 'Caseirinhos Fer&Dre',
+      });
+      if (onToast) {
+        onToast('Relatório financeiro em PDF baixado com sucesso!');
+      }
+    } catch (err: any) {
+      console.error('Error generating financial PDF:', err);
+      if (onToast) {
+        onToast('Erro ao gerar relatório financeiro em PDF: ' + err.message, 'error');
+      }
+    } finally {
+      setIsExportingPdf(false);
     }
   };
 
@@ -469,7 +495,18 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Botão de Exportação do Resumo Financeiro em PDF */}
+          <button
+            onClick={handleExportPdf}
+            disabled={isExportingPdf}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-amber-950 dark:text-amber-200 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/80 dark:hover:bg-amber-900/80 border border-amber-300 dark:border-amber-700/80 rounded-xl shadow-2xs transition-all active:scale-[0.98] min-h-[40px] cursor-pointer disabled:opacity-50"
+            title="Exportar demonstrativo financeiro completo (lucro por período, custos fixos e variáveis) em PDF para impressão ou envio"
+          >
+            <FileDown className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
+            <span>{isExportingPdf ? 'Gerando PDF...' : 'Exportar PDF Financeiro'}</span>
+          </button>
+
           <button
             onClick={onNavigateToOrders}
             className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xs transition-all active:scale-[0.98] min-h-[40px]"
@@ -1175,9 +1212,25 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
                 Fechamento Detalhado por Mês ({monthlyData.length} meses)
               </h3>
             </div>
-            <div className="flex items-center gap-2 text-stone-500 text-xs font-medium">
-              <span>{showMonthlyTable ? 'Ocultar tabela' : 'Exibir tabela'}</span>
-              {showMonthlyTable ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleExportPdf();
+                }}
+                disabled={isExportingPdf}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-950 dark:text-amber-200 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/70 dark:hover:bg-amber-900/70 border border-amber-300 dark:border-amber-800 rounded-xl transition-colors cursor-pointer"
+                title="Exportar demonstrativo completo em PDF"
+              >
+                <FileDown className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
+                <span>PDF</span>
+              </button>
+
+              <div className="flex items-center gap-1.5 text-stone-500 text-xs font-medium">
+                <span>{showMonthlyTable ? 'Ocultar tabela' : 'Exibir tabela'}</span>
+                {showMonthlyTable ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </div>
             </div>
           </div>
 

@@ -627,6 +627,8 @@ export default function App() {
             recipes={data.recs}
             onSaveIngredient={handleSaveIngredient}
             onDeleteIngredient={handleDeleteIngredient}
+            onToast={showToast}
+            onNavigateToScale={() => handleNavigate('scale')}
           />
         )}
 

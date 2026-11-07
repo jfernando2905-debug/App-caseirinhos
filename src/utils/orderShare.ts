@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { Order, OrderItem } from '../types';
 import { formatCurrency } from './calculations';
+import { formatDatePtBR } from './dateUtils';
 
 export const CAKE_TYPES = [
   'Bolo caseiro',
@@ -43,14 +44,7 @@ export const formatItemText = (item: OrderItem): string => {
   return `${qtyPrefix}${item.tipo}${sizePart}${flavorPart}`;
 };
 
-export const formatDatePtBR = (dateStr?: string): string => {
-  if (!dateStr) return '';
-  const parts = dateStr.split('-');
-  if (parts.length === 3) {
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  }
-  return dateStr;
-};
+export { formatDatePtBR };
 
 export const PIX_CONFIG = {
   tipo: 'CPF',

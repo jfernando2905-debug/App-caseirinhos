@@ -15,6 +15,8 @@ export interface Ingredient {
   unit: Unit;
   hist: PriceHistoryEntry[];
   category?: string;
+  stock?: number; // Quantidade atual em estoque (na unidade 'unit')
+  minStock?: number; // Estoque mínimo desejado (se vazio, calculado a partir das receitas)
 }
 
 export interface RecipeItem {
