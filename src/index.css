@@ -22,36 +22,49 @@
     color: #f5f5f4;
   }
 
-  /* When an input or its container has a light background in dark mode, force dark legible text */
-  .dark input.bg-white,
-  .dark input.bg-stone-50,
-  .dark input.bg-stone-100,
-  .dark input.bg-stone-200,
-  .dark input.bg-amber-50,
-  .dark textarea.bg-white,
-  .dark textarea.bg-stone-50,
-  .dark textarea.bg-stone-100,
-  .dark select.bg-white,
-  .dark select.bg-stone-50,
-  .dark select.bg-stone-100,
-  .dark .bg-white input:not([class*="dark:bg-"]),
-  .dark .bg-stone-50 input:not([class*="dark:bg-"]),
-  .dark .bg-stone-100 input:not([class*="dark:bg-"]),
-  .dark .bg-amber-50 input:not([class*="dark:bg-"]),
-  .dark .bg-white textarea:not([class*="dark:bg-"]),
-  .dark .bg-stone-50 textarea:not([class*="dark:bg-"]),
-  .dark .bg-white select:not([class*="dark:bg-"]),
-  .dark .bg-stone-50 select:not([class*="dark:bg-"]) {
+  /* When an input or its container has a light background in dark mode (without a dark:bg- variant), force dark legible text */
+  .dark .bg-white:not([class*="dark:bg-"]) input:not([class*="dark:bg-"]),
+  .dark .bg-stone-50:not([class*="dark:bg-"]) input:not([class*="dark:bg-"]),
+  .dark .bg-stone-100:not([class*="dark:bg-"]) input:not([class*="dark:bg-"]),
+  .dark .bg-amber-50:not([class*="dark:bg-"]) input:not([class*="dark:bg-"]),
+  .dark .bg-white:not([class*="dark:bg-"]) textarea:not([class*="dark:bg-"]),
+  .dark .bg-stone-50:not([class*="dark:bg-"]) textarea:not([class*="dark:bg-"]),
+  .dark .bg-white:not([class*="dark:bg-"]) select:not([class*="dark:bg-"]),
+  .dark .bg-stone-50:not([class*="dark:bg-"]) select:not([class*="dark:bg-"]) {
     color: #1c1917 !important;
   }
 
+  /* Fix native date / time picker controls in dark mode */
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"] {
+    color-scheme: light;
+  }
+
+  .dark input[type="date"],
+  .dark input[type="time"],
+  .dark input[type="datetime-local"],
+  html.dark input[type="date"],
+  html.dark input[type="time"],
+  html.dark input[type="datetime-local"] {
+    color-scheme: dark !important;
+    color: #f5f5f4 !important;
+  }
+
+  .dark input[type="date"]::-webkit-calendar-picker-indicator,
+  .dark input[type="time"]::-webkit-calendar-picker-indicator,
+  .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  html.dark input[type="date"]::-webkit-calendar-picker-indicator,
+  html.dark input[type="time"]::-webkit-calendar-picker-indicator,
+  html.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.9) !important;
+    cursor: pointer;
+  }
+
   /* When input explicitly has dark background in dark mode, ensure light legible text */
-  .dark input[class*="dark:bg-stone-8"],
-  .dark input[class*="dark:bg-stone-9"],
-  .dark textarea[class*="dark:bg-stone-8"],
-  .dark textarea[class*="dark:bg-stone-9"],
-  .dark select[class*="dark:bg-stone-8"],
-  .dark select[class*="dark:bg-stone-9"] {
+  .dark input[class*="dark:bg-"],
+  .dark textarea[class*="dark:bg-"],
+  .dark select[class*="dark:bg-"] {
     color: #f5f5f4 !important;
   }
 }

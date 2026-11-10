@@ -816,7 +816,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
                 type="date"
                 value={entrega}
                 onChange={(e) => setEntrega(e.target.value)}
-                className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-semibold tabular-nums focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500 transition-colors min-h-[42px]"
+                className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-semibold tabular-nums focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500 transition-colors min-h-[42px] dark:[color-scheme:dark]"
                 required
               />
             </div>
@@ -830,7 +830,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
                 type="time"
                 value={hora}
                 onChange={(e) => setHora(e.target.value)}
-                className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-semibold tabular-nums focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500 transition-colors min-h-[42px]"
+                className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm font-semibold tabular-nums focus:bg-white dark:focus:bg-stone-800 focus:border-amber-500 transition-colors min-h-[42px] dark:[color-scheme:dark]"
               />
             </div>
           </div>

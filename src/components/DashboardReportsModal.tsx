@@ -252,7 +252,7 @@ export const DashboardReportsModal: React.FC<DashboardReportsModalProps> = ({
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="bg-transparent text-stone-900 dark:text-stone-100 font-semibold outline-none"
+                className="bg-transparent text-stone-900 dark:text-stone-100 font-semibold outline-none cursor-pointer dark:[color-scheme:dark]"
               />
             </div>
 
@@ -262,7 +262,7 @@ export const DashboardReportsModal: React.FC<DashboardReportsModalProps> = ({
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="bg-transparent text-stone-900 dark:text-stone-100 font-semibold outline-none"
+                className="bg-transparent text-stone-900 dark:text-stone-100 font-semibold outline-none cursor-pointer dark:[color-scheme:dark]"
               />
             </div>
 

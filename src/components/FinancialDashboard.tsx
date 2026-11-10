@@ -711,7 +711,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
                   type="date"
                   value={customStartDate}
                   onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="bg-transparent text-stone-900 dark:text-stone-100 font-bold outline-none cursor-pointer"
+                  className="bg-transparent text-stone-900 dark:text-stone-100 font-bold outline-none cursor-pointer dark:[color-scheme:dark]"
                 />
               </div>
 
@@ -721,7 +721,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
                   type="date"
                   value={customEndDate}
                   onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="bg-transparent text-stone-900 dark:text-stone-100 font-bold outline-none cursor-pointer"
+                  className="bg-transparent text-stone-900 dark:text-stone-100 font-bold outline-none cursor-pointer dark:[color-scheme:dark]"
                 />
               </div>
 
