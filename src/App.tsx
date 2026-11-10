@@ -21,7 +21,13 @@ import { FinancialDashboard } from './components/FinancialDashboard';
 import { PasteRecipeModal } from './components/PasteRecipeModal';
 import { PrintProductionSheet } from './components/PrintProductionSheet';
 import { AuthModal } from './components/AuthModal';
-import { OfflineIndicator } from './components/OfflineIndicator';
+import { StockInsufficientModal } from './components/StockInsufficientModal';
+import {
+  calculateOrderStockRequirements,
+  executeOrderStockDeduction,
+  executeOrderStockEstorno,
+  MissingStockItem,
+} from './utils/orderStockDeduction';
 import { Check, Info, AlertTriangle, X, Cloud, CloudCheck } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import {
@@ -52,18 +58,35 @@ export default function App() {
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
   const [scalingRecipeId, setScalingRecipeId] = useState<string>('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const [insufficientStockData, setInsufficientStockData] = useState<{
+    order: Order;
+    missingItems: MissingStockItem[];
+  } | null>(null);
 
-  // Theme state: light or dark mode
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('custo-receitas-theme');
-      if (saved === 'dark' || saved === 'light') return saved;
-      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        return 'dark';
-      }
+  // Automatic Theme helper: Light mode from 06:00 to 17:59, Dark mode from 18:00 to 05:59 local time
+  const getThemeByTime = (): 'light' | 'dark' => {
+    if (typeof window === 'undefined') return 'light';
+    const hours = new Date().getHours();
+    if (hours >= 6 && hours < 18) {
+      return 'light';
     }
-    return 'light';
-  });
+    return 'dark';
+  };
+
+  // Theme state: light or dark mode based on local device time
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => getThemeByTime());
+
+  // Periodically re-evaluate theme every 30 seconds to catch 06:00 and 18:00 thresholds automatically
+  useEffect(() => {
+    const checkThemeByTime = () => {
+      const targetTheme = getThemeByTime();
+      setTheme(targetTheme);
+    };
+
+    checkThemeByTime();
+    const interval = setInterval(checkThemeByTime, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -198,58 +221,186 @@ export default function App() {
   };
 
   const handleUpdateOrderStatus = (orderId: string, newStatus: OrderStatus, pago?: boolean) => {
-    let targetOrder: Order | null = null;
+    const targetOrder = data.orders.find((o) => o.id === orderId);
+    if (!targetOrder) return;
 
-    const found = data.orders.find((o) => o.id === orderId);
-    if (found) {
-      targetOrder = {
-        ...found,
+    // Transitioning to 'pronto' or 'entregue'
+    if (newStatus === 'pronto' || newStatus === 'entregue') {
+      // Check if stock was ALREADY deducted for this order
+      if (targetOrder.stockDeducted) {
+        const resolvedOrder: Order = {
+          ...targetOrder,
+          status: newStatus,
+          ...(pago !== undefined
+            ? {
+                pago,
+                pagoEm: pago ? (targetOrder.pagoEm || Date.now()) : undefined,
+              }
+            : {}),
+        };
+
+        setData((prev) => ({
+          ...prev,
+          orders: prev.orders.map((o) => (o.id === orderId ? resolvedOrder : o)),
+        }));
+
+        if (user) {
+          saveCloudOrder(user.uid, resolvedOrder).catch((err) =>
+            console.error('Error updating order status in cloud:', err)
+          );
+        }
+
+        const statusLabel = newStatus === 'pronto' ? 'marcada como pronta' : 'marcada como entregue';
+        const paymentLabel =
+          pago === true ? ' e pagamento baixado (pago)' : pago === false ? ' (pendente de pagamento)' : '';
+        showToast(`Encomenda de ${resolvedOrder.cliente} ${statusLabel}${paymentLabel}!`);
+        return;
+      }
+
+      // Stock NOT deducted yet. Verify stock sufficiency!
+      const reqs = calculateOrderStockRequirements(
+        targetOrder,
+        data.recs || [],
+        data.ings || [],
+        data.packagings || []
+      );
+
+      if (!reqs.isSufficient) {
+        // Trigger detailed insufficient stock alert modal!
+        setInsufficientStockData({
+          order: targetOrder,
+          missingItems: reqs.missingItems,
+        });
+        return;
+      }
+
+      // Execute automatic stock deduction for ingredients and packagings!
+      const deduction = executeOrderStockDeduction(
+        targetOrder,
+        data.recs || [],
+        data.ings || [],
+        data.packagings || []
+      );
+
+      const resolvedOrder: Order = {
+        ...deduction.updatedOrder,
         status: newStatus,
         ...(pago !== undefined
           ? {
               pago,
-              pagoEm: pago ? (found.pagoEm || Date.now()) : undefined,
+              pagoEm: pago ? (targetOrder.pagoEm || Date.now()) : undefined,
             }
           : {}),
       };
+
+      setData((prev) => ({
+        ...prev,
+        ings: deduction.updatedIngredients,
+        packagings: deduction.updatedPackagings,
+        stockMovements: [...deduction.newStockMovements, ...(prev.stockMovements || [])],
+        packagingMovements: [...deduction.newPackagingMovements, ...(prev.packagingMovements || [])],
+        orders: prev.orders.map((o) => (o.id === orderId ? resolvedOrder : o)),
+      }));
+
+      if (user) {
+        saveCloudOrder(user.uid, resolvedOrder).catch((err) =>
+          console.error('Error updating order status in cloud:', err)
+        );
+        deduction.updatedIngredients.forEach((ing) => {
+          saveCloudIngredient(user.uid, ing).catch((err) => console.error('Cloud ing error:', err));
+        });
+        deduction.updatedPackagings.forEach((pack) => {
+          saveCloudPackaging(user.uid, pack).catch((err) => console.error('Cloud pack error:', err));
+        });
+        deduction.newPackagingMovements.forEach((mov) => {
+          saveCloudPackagingMovement(user.uid, mov).catch((err) => console.error('Cloud mov error:', err));
+        });
+      }
+
+      const statusLabel = newStatus === 'pronto' ? 'marcada como pronta' : 'marcada como entregue';
+      const paymentLabel =
+        pago === true ? ' e pagamento baixado (pago)' : pago === false ? ' (pendente de pagamento)' : '';
+      const itemsCount = deduction.newStockMovements.length + deduction.newPackagingMovements.length;
+      showToast(
+        `Encomenda de ${resolvedOrder.cliente} ${statusLabel}${paymentLabel}! Baixa automática efetuada no estoque (${itemsCount} itens).`,
+        'success'
+      );
+      return;
     }
 
-    setData((prev) => {
-      const orderInState = prev.orders.find((o) => o.id === orderId);
-      if (!orderInState) return prev;
-      targetOrder = {
-        ...orderInState,
-        status: newStatus,
+    // Reverting back to 'pendente'
+    if (newStatus === 'pendente') {
+      if (targetOrder.stockDeducted) {
+        // Execute estorno to restore deducted ingredients and packagings!
+        const estorno = executeOrderStockEstorno(
+          targetOrder,
+          data.recs || [],
+          data.ings || [],
+          data.packagings || []
+        );
+
+        const resolvedOrder: Order = {
+          ...estorno.updatedOrder,
+          status: 'pendente',
+          ...(pago !== undefined
+            ? {
+                pago,
+                pagoEm: pago ? (targetOrder.pagoEm || Date.now()) : undefined,
+              }
+            : {}),
+        };
+
+        setData((prev) => ({
+          ...prev,
+          ings: estorno.updatedIngredients,
+          packagings: estorno.updatedPackagings,
+          stockMovements: [...estorno.newStockMovements, ...(prev.stockMovements || [])],
+          packagingMovements: [...estorno.newPackagingMovements, ...(prev.packagingMovements || [])],
+          orders: prev.orders.map((o) => (o.id === orderId ? resolvedOrder : o)),
+        }));
+
+        if (user) {
+          saveCloudOrder(user.uid, resolvedOrder).catch((err) =>
+            console.error('Error updating order status in cloud:', err)
+          );
+          estorno.updatedIngredients.forEach((ing) => {
+            saveCloudIngredient(user.uid, ing).catch((err) => console.error('Cloud ing error:', err));
+          });
+          estorno.updatedPackagings.forEach((pack) => {
+            saveCloudPackaging(user.uid, pack).catch((err) => console.error('Cloud pack error:', err));
+          });
+        }
+
+        showToast(
+          `Encomenda de ${resolvedOrder.cliente} reaberta (pendente). Estoque de insumos e embalagens estornado com sucesso.`,
+          'info'
+        );
+        return;
+      }
+
+      const resolvedOrder: Order = {
+        ...targetOrder,
+        status: 'pendente',
         ...(pago !== undefined
           ? {
               pago,
-              pagoEm: pago ? (orderInState.pagoEm || Date.now()) : undefined,
+              pagoEm: pago ? (targetOrder.pagoEm || Date.now()) : undefined,
             }
           : {}),
       };
-      return {
-        ...prev,
-        orders: prev.orders.map((o) => (o.id === orderId ? targetOrder! : o)),
-      };
-    });
 
-    if (targetOrder) {
-      const resolvedOrder: Order = targetOrder;
+      setData((prev) => ({
+        ...prev,
+        orders: prev.orders.map((o) => (o.id === orderId ? resolvedOrder : o)),
+      }));
+
       if (user) {
         saveCloudOrder(user.uid, resolvedOrder).catch((err) =>
           console.error('Error updating order status in cloud:', err)
         );
       }
 
-      const statusLabel =
-        newStatus === 'pronto'
-          ? 'marcada como pronta'
-          : newStatus === 'entregue'
-          ? 'marcada como entregue'
-          : 'pendente';
-      const paymentLabel =
-        pago === true ? ' e pagamento baixado (pago)' : pago === false ? ' (pendente de pagamento)' : '';
-      showToast(`Encomenda de ${resolvedOrder.cliente} ${statusLabel}${paymentLabel}!`);
+      showToast(`Encomenda de ${resolvedOrder.cliente} alterada para pendente.`, 'info');
     }
   };
 
@@ -299,18 +450,51 @@ export default function App() {
   };
 
   const handleDeleteOrder = (orderId: string) => {
-    setData((prev) => ({
-      ...prev,
-      orders: prev.orders.filter((o) => o.id !== orderId),
-    }));
-
-    if (user) {
-      deleteCloudOrder(user.uid, orderId).catch((err) =>
-        console.error('Error deleting order from cloud:', err)
+    const targetOrder = data.orders.find((o) => o.id === orderId);
+    if (targetOrder && targetOrder.stockDeducted) {
+      const estorno = executeOrderStockEstorno(
+        targetOrder,
+        data.recs || [],
+        data.ings || [],
+        data.packagings || []
       );
-    }
 
-    showToast('Encomenda excluída com sucesso.', 'info');
+      setData((prev) => ({
+        ...prev,
+        ings: estorno.updatedIngredients,
+        packagings: estorno.updatedPackagings,
+        stockMovements: [...estorno.newStockMovements, ...(prev.stockMovements || [])],
+        packagingMovements: [...estorno.newPackagingMovements, ...(prev.packagingMovements || [])],
+        orders: prev.orders.filter((o) => o.id !== orderId),
+      }));
+
+      if (user) {
+        deleteCloudOrder(user.uid, orderId).catch((err) =>
+          console.error('Error deleting order from cloud:', err)
+        );
+        estorno.updatedIngredients.forEach((ing) => {
+          saveCloudIngredient(user.uid, ing).catch((err) => console.error('Cloud ing error:', err));
+        });
+        estorno.updatedPackagings.forEach((pack) => {
+          saveCloudPackaging(user.uid, pack).catch((err) => console.error('Cloud pack error:', err));
+        });
+      }
+
+      showToast('Encomenda excluída com sucesso. Estoque de insumos e embalagens estornado.', 'info');
+    } else {
+      setData((prev) => ({
+        ...prev,
+        orders: prev.orders.filter((o) => o.id !== orderId),
+      }));
+
+      if (user) {
+        deleteCloudOrder(user.uid, orderId).catch((err) =>
+          console.error('Error deleting order from cloud:', err)
+        );
+      }
+
+      showToast('Encomenda excluída com sucesso.', 'info');
+    }
   };
 
   const handleScaleOrder = (order: Order) => {
@@ -825,6 +1009,17 @@ export default function App() {
         onClose={() => setAuthModalOpen(false)}
         onSuccessToast={(msg) => showToast(msg)}
       />
+
+      {/* Insufficient Stock Alert Modal */}
+      {insufficientStockData && (
+        <StockInsufficientModal
+          isOpen={!!insufficientStockData}
+          onClose={() => setInsufficientStockData(null)}
+          order={insufficientStockData.order}
+          missingItems={insufficientStockData.missingItems}
+          onNavigateToShopping={() => handleNavigate('scale')}
+        />
+      )}
 
       {/* Toast Notifications */}
       {toast && (

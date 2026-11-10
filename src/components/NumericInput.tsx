@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 interface NumericInputProps {
-  value: number;
+  value?: number;
   onChange: (value: number) => void;
   placeholder?: string;
   allowDecimals?: boolean;
@@ -40,7 +40,7 @@ export const NumericInput: React.FC<NumericInputProps> = ({
   const [text, setText] = useState<string>(() => formatInitial(value));
   const isInternalChange = useRef<boolean>(false);
 
-  function formatInitial(val: number): string {
+  function formatInitial(val?: number): string {
     if (val === undefined || val === null || isNaN(val)) {
       return '';
     }

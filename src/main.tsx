@@ -10,12 +10,14 @@ registerSW({ immediate: true });
 // Suppress benign abort errors from Firestore WebChannel streams closing and browser extensions
 if (typeof window !== 'undefined') {
   const isIgnorableError = (msg: string) => {
+    const lower = (msg || '').toLowerCase();
     return (
-      msg.includes('AbortError') ||
-      msg.includes('signal is aborted without reason') ||
-      msg.includes('The user aborted a request') ||
-      msg.includes('WebSocket closed without opened') ||
-      msg.includes('Cannot set property fetch')
+      lower.includes('aborterror') ||
+      lower.includes('signal is aborted') ||
+      lower.includes('aborted without reason') ||
+      lower.includes('user aborted') ||
+      lower.includes('websocket closed') ||
+      lower.includes('cannot set property fetch')
     );
   };
 
@@ -27,13 +29,20 @@ if (typeof window !== 'undefined') {
     }
   });
 
-  window.addEventListener('error', (event) => {
-    const msg = event.message || (event.error ? event.error.message : '');
-    if (isIgnorableError(msg)) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    }
-  });
+  window.addEventListener(
+    'error',
+    (event) => {
+      const msg =
+        (event as any)?.message ||
+        ((event as any)?.error ? (event as any).error.message || (event as any).error.name : '') ||
+        String(event || '');
+      if (isIgnorableError(msg)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    },
+    true
+  );
 }
 
 import { ErrorBoundary } from './components/ErrorBoundary';

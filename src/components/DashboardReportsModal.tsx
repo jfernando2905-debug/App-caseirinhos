@@ -28,6 +28,9 @@ interface DashboardReportsModalProps {
   recipes: Recipe[];
   ingredients: Ingredient[];
   cfg: AppSettings;
+  initialPeriod?: 'dia' | 'semana' | 'mes' | 'total' | 'personalizado';
+  initialStartDate?: string;
+  initialEndDate?: string;
   onToast?: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
@@ -38,36 +41,63 @@ export const DashboardReportsModal: React.FC<DashboardReportsModalProps> = ({
   recipes,
   ingredients,
   cfg,
+  initialPeriod = 'mes',
+  initialStartDate,
+  initialEndDate,
   onToast,
 }) => {
   const [reportType, setReportType] = useState<'sintetico' | 'analitico'>('sintetico');
 
-  // Date filter range
-  const now = new Date();
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-  const todayStr = now.toISOString().slice(0, 10);
-
-  const [startDate, setStartDate] = useState<string>(firstDayOfMonth);
-  const [endDate, setEndDate] = useState<string>(todayStr);
-  const [preset, setPreset] = useState<'month' | '30days' | 'year' | 'all'>('month');
-
-  const handleApplyPreset = (p: 'month' | '30days' | 'year' | 'all') => {
-    setPreset(p);
+  // Date filter range calculation
+  const getPresetDates = (p: 'dia' | 'semana' | 'mes' | 'total' | 'personalizado') => {
     const d = new Date();
-    if (p === 'month') {
-      setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10));
-      setEndDate(d.toISOString().slice(0, 10));
-    } else if (p === '30days') {
-      const past = new Date(d.getTime() - 30 * 24 * 60 * 60 * 1000);
-      setStartDate(past.toISOString().slice(0, 10));
-      setEndDate(d.toISOString().slice(0, 10));
-    } else if (p === 'year') {
-      setStartDate(new Date(d.getFullYear(), 0, 1).toISOString().slice(0, 10));
-      setEndDate(d.toISOString().slice(0, 10));
-    } else if (p === 'all') {
-      setStartDate('2020-01-01');
-      setEndDate('2030-12-31');
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+
+    if (p === 'personalizado' && initialStartDate && initialEndDate) {
+      return { start: initialStartDate, end: initialEndDate };
     }
+
+    if (p === 'dia') {
+      return { start: todayStr, end: todayStr };
+    }
+
+    if (p === 'semana') {
+      const dayOfWeek = d.getDay();
+      const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const monday = new Date(d);
+      monday.setDate(d.getDate() - distanceToMonday);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+
+      const monStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+      const sunStr = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
+      return { start: monStr, end: sunStr };
+    }
+
+    if (p === 'mes') {
+      const firstDay = `${year}-${month}-01`;
+      const lastDayObj = new Date(year, d.getMonth() + 1, 0);
+      const lastDay = `${year}-${month}-${String(lastDayObj.getDate()).padStart(2, '0')}`;
+      return { start: firstDay, end: lastDay };
+    }
+
+    // total or fallback
+    return { start: '2020-01-01', end: '2030-12-31' };
+  };
+
+  const initialDates = getPresetDates(initialPeriod);
+  const [startDate, setStartDate] = useState<string>(initialDates.start);
+  const [endDate, setEndDate] = useState<string>(initialDates.end);
+  const [preset, setPreset] = useState<'dia' | 'semana' | 'mes' | 'total' | 'personalizado' | 'custom'>(initialPeriod);
+
+  const handleApplyPreset = (p: 'dia' | 'semana' | 'mes' | 'total') => {
+    setPreset(p);
+    const { start, end } = getPresetDates(p);
+    setStartDate(start);
+    setEndDate(end);
   };
 
   // Filtered orders by date range
@@ -239,28 +269,40 @@ export const DashboardReportsModal: React.FC<DashboardReportsModalProps> = ({
             {/* Presets */}
             <div className="flex items-center gap-1">
               <button
-                onClick={() => handleApplyPreset('month')}
-                className={`px-2 py-1 rounded-lg font-medium text-[11px] ${
-                  preset === 'month' ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 font-bold' : 'text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-800'
+                type="button"
+                onClick={() => handleApplyPreset('dia')}
+                className={`px-2 py-1 rounded-lg font-medium text-[11px] cursor-pointer ${
+                  preset === 'dia' ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 font-bold' : 'text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-800'
                 }`}
               >
-                Mês Atual
+                Dia
               </button>
               <button
-                onClick={() => handleApplyPreset('30days')}
-                className={`px-2 py-1 rounded-lg font-medium text-[11px] ${
-                  preset === '30days' ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 font-bold' : 'text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-800'
+                type="button"
+                onClick={() => handleApplyPreset('semana')}
+                className={`px-2 py-1 rounded-lg font-medium text-[11px] cursor-pointer ${
+                  preset === 'semana' ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 font-bold' : 'text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-800'
                 }`}
               >
-                30 Dias
+                Semana
               </button>
               <button
-                onClick={() => handleApplyPreset('all')}
-                className={`px-2 py-1 rounded-lg font-medium text-[11px] ${
-                  preset === 'all' ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 font-bold' : 'text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-800'
+                type="button"
+                onClick={() => handleApplyPreset('mes')}
+                className={`px-2 py-1 rounded-lg font-medium text-[11px] cursor-pointer ${
+                  preset === 'mes' ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 font-bold' : 'text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-800'
                 }`}
               >
-                Tudo
+                Mês
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset('total')}
+                className={`px-2 py-1 rounded-lg font-medium text-[11px] cursor-pointer ${
+                  preset === 'total' ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 font-bold' : 'text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-800'
+                }`}
+              >
+                Total
               </button>
             </div>
           </div>

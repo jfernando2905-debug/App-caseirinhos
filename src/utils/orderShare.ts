@@ -934,3 +934,187 @@ export const generateOrdersReportPdf = (orders: Order[], filterLabel = 'Todas'):
   doc.save(`relatorio-encomendas-${cleanFilter}-${new Date().toISOString().slice(0, 10)}.pdf`);
 };
 
+/**
+ * Generates and downloads a PDF of the Production Grid (Grade de Produção) formatted for A4 printing and pen checklist.
+ */
+export const generateProductionGridPdf = (orders: Order[], completedMap: Record<string, boolean> = {}): void => {
+  const doc = new jsPDF({
+    unit: 'mm',
+    format: 'a4',
+    orientation: 'portrait',
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 14;
+  const contentWidth = pageWidth - 2 * margin;
+  let y = 14;
+
+  const openOrders = orders.filter((o) => (o.status || 'pendente') !== 'entregue');
+
+  const checkPageBreak = (neededHeight: number) => {
+    if (y + neededHeight > pageHeight - 16) {
+      doc.addPage();
+      y = 14;
+      drawHeader(false);
+    }
+  };
+
+  const drawHeader = (isFirst: boolean) => {
+    doc.setFillColor(248, 246, 242);
+    doc.roundedRect(margin, y, contentWidth, isFirst ? 22 : 14, 3, 3, 'F');
+    doc.setFillColor(217, 119, 6);
+    doc.rect(margin, y, 3, isFirst ? 22 : 14, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(isFirst ? 14 : 10);
+    doc.setTextColor(43, 29, 20);
+    doc.text(
+      isFirst ? 'GRADE DE PRODUÇÃO DE BOLOS (COZINHA)' : 'GRADE DE PRODUÇÃO DE BOLOS — continuação',
+      margin + 7,
+      y + (isFirst ? 8.5 : 6)
+    );
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(isFirst ? 8.5 : 8);
+    doc.setTextColor(120, 110, 100);
+    doc.text(
+      `Encomendas em Aberto  |  Total: ${openOrders.length} pedido(s)`,
+      margin + 7,
+      y + (isFirst ? 15.5 : 11)
+    );
+
+    doc.setFontSize(8);
+    doc.setTextColor(140, 130, 120);
+    doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, pageWidth - margin - 5, y + (isFirst ? 8.5 : 6), {
+      align: 'right',
+    });
+
+    y += isFirst ? 26 : 18;
+  };
+
+  drawHeader(true);
+
+  // Table header
+  doc.setFillColor(240, 236, 230);
+  doc.rect(margin, y, contentWidth, 7, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(60, 50, 40);
+
+  const cols = {
+    check: margin + 3,
+    entrega: margin + 14,
+    cliente: margin + 42,
+    produto: margin + 98,
+    status: margin + contentWidth - 4,
+  };
+
+  doc.text('OK', cols.check, y + 4.8);
+  doc.text('Data / Hora', cols.entrega, y + 4.8);
+  doc.text('Cliente / Contato', cols.cliente, y + 4.8);
+  doc.text('Produto, Tamanho & Sabor', cols.produto, y + 4.8);
+  doc.text('Status', cols.status, y + 4.8, { align: 'right' });
+  y += 7;
+
+  if (openOrders.length === 0) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(120, 110, 100);
+    doc.text('Nenhuma encomenda em aberto no momento.', margin + 4, y + 8);
+    y += 14;
+  } else {
+    openOrders.forEach((o, oIdx) => {
+      const items = o.itens || [];
+
+      items.forEach((it, iIdx) => {
+        checkPageBreak(12);
+
+        const itemKey = `${o.id}__${iIdx}`;
+        const isDone = !!completedMap[itemKey] || o.status === 'pronto';
+
+        if (oIdx % 2 === 1) {
+          doc.setFillColor(252, 251, 249);
+          doc.rect(margin, y, contentWidth, 10, 'F');
+        }
+
+        // Checkbox symbol
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(isDone ? 22 : 100, isDone ? 101 : 100, isDone ? 52 : 100);
+        doc.text(isDone ? '[X]' : '[  ]', cols.check, y + 5.5);
+
+        // Date / Time
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(30, 25, 20);
+        const dataStr = formatDatePtBR(o.entrega) || '-';
+        doc.text(dataStr, cols.entrega, y + 4.2);
+        if (o.hora) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7);
+          doc.setTextColor(110, 100, 95);
+          doc.text(`às ${o.hora}`, cols.entrega, y + 8);
+        }
+
+        // Cliente
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(30, 25, 20);
+        const clienteShort = doc.splitTextToSize(o.cliente || 'Sem nome', 50)[0];
+        doc.text(clienteShort, cols.cliente, y + 4.2);
+        if (o.telefone) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7);
+          doc.setTextColor(110, 100, 95);
+          doc.text(o.telefone, cols.cliente, y + 8);
+        }
+
+        // Item details with size
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(30, 25, 20);
+        const qStr = it.qtd > 1 ? `${it.qtd}× ` : '';
+        const prodLine = `${qStr}${it.tipo} [Tamanho: ${it.tamanho || 'Padrão'}] — ${it.sabor || 'Sem sabor'}`;
+        const prodSplits = doc.splitTextToSize(prodLine, 62);
+        doc.text(prodSplits[0] || '', cols.produto, y + 4.2);
+        if (prodSplits[1]) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7.5);
+          doc.text(prodSplits[1], cols.produto, y + 8);
+        }
+
+        // Status
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        if (isDone || o.status === 'pronto') {
+          doc.setTextColor(2, 132, 199);
+          doc.text('PRONTO', cols.status, y + 5, { align: 'right' });
+        } else {
+          doc.setTextColor(180, 83, 9);
+          doc.text('PENDENTE', cols.status, y + 5, { align: 'right' });
+        }
+
+        y += 10.5;
+      });
+    });
+  }
+
+  // Footer on all pages
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setDrawColor(230, 224, 216);
+    doc.setLineWidth(0.3);
+    doc.line(margin, pageHeight - 12, margin + contentWidth, pageHeight - 12);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(150, 140, 135);
+    doc.text('Grade de Produção de Bolos · Caseirinhos Fer&Dre', margin, pageHeight - 7);
+    doc.text(`Página ${p} de ${totalPages}`, pageWidth - margin, pageHeight - 7, { align: 'right' });
+  }
+
+  doc.save(`grade-producao-bolos-${new Date().toISOString().slice(0, 10)}.pdf`);
+};
+

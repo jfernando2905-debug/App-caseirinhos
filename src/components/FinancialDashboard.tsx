@@ -83,9 +83,81 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
   const [chartType, setChartType] = useState<'area' | 'bar'>('area');
   const [showMonthlyTable, setShowMonthlyTable] = useState<boolean>(true);
   const [receberFilter, setReceberFilter] = useState<'todas' | 'entregues' | 'abertas' | 'pagas'>('todas');
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const defaultToday = `${year}-${month}-${day}`;
+  const defaultFirstDay = `${year}-${month}-01`;
+
+  const [periodFilter, setPeriodFilter] = useState<'dia' | 'semana' | 'mes' | 'total' | 'personalizado'>('mes');
+  const [customStartDate, setCustomStartDate] = useState<string>(defaultFirstDay);
+  const [customEndDate, setCustomEndDate] = useState<string>(defaultToday);
+  const [appliedCustomStartDate, setAppliedCustomStartDate] = useState<string>(defaultFirstDay);
+  const [appliedCustomEndDate, setAppliedCustomEndDate] = useState<string>(defaultToday);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
   const [isDashboardReportsOpen, setIsDashboardReportsOpen] = useState<boolean>(false);
+
+  const handleApplyCustomPeriod = () => {
+    if (!customStartDate || !customEndDate) {
+      if (onToast) onToast('Por favor, selecione as datas inicial e final.', 'error');
+      return;
+    }
+    if (customStartDate > customEndDate) {
+      if (onToast) onToast('A data inicial não pode ser posterior à data final.', 'error');
+      return;
+    }
+    setAppliedCustomStartDate(customStartDate);
+    setAppliedCustomEndDate(customEndDate);
+    setPeriodFilter('personalizado');
+    if (onToast) {
+      onToast(`Filtro personalizado aplicado: ${formatDatePtBR(customStartDate)} até ${formatDatePtBR(customEndDate)}!`);
+    }
+  };
+
+  // Period filter date helper
+  const isOrderInPeriod = (order: Order, period: 'dia' | 'semana' | 'mes' | 'total' | 'personalizado'): boolean => {
+    if (period === 'total') return true;
+    const dateStr = order.entrega || '';
+    if (!dateStr) return false;
+
+    if (period === 'dia') {
+      return dateStr === defaultToday;
+    }
+
+    if (period === 'mes') {
+      const currentYearMonth = `${year}-${month}`;
+      return dateStr.startsWith(currentYearMonth);
+    }
+
+    if (period === 'semana') {
+      const dayOfWeek = now.getDay();
+      const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - distanceToMonday);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+
+      const monStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+      const sunStr = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
+
+      return dateStr >= monStr && dateStr <= sunStr;
+    }
+
+    if (period === 'personalizado') {
+      if (appliedCustomStartDate && dateStr < appliedCustomStartDate) return false;
+      if (appliedCustomEndDate && dateStr > appliedCustomEndDate) return false;
+      return true;
+    }
+
+    return true;
+  };
+
+  // Filter orders by selected period
+  const periodFilteredOrders = useMemo(() => {
+    return (orders || []).filter((o) => isOrderInPeriod(o, periodFilter));
+  }, [orders, periodFilter, appliedCustomStartDate, appliedCustomEndDate]);
 
   // Packaging metrics calculation
   const packagingMetrics = useMemo(() => {
@@ -106,7 +178,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
     };
   }, [packagings, packagingMovements]);
 
-  // 1. Calculate overall financial metrics
+  // 1. Calculate overall financial metrics for the period
   const {
     totalFaturamento,
     faturamentoEntregue,
@@ -140,7 +212,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
     const counts = { pendente: 0, pronto: 0, entregue: 0 };
     const values = { pendente: 0, pronto: 0, entregue: 0 };
 
-    for (const order of orders) {
+    for (const order of periodFilteredOrders) {
       const val = order.valor || 0;
       const sin = order.sinal || 0;
       const restante = Math.max(0, val - sin);
@@ -179,7 +251,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
     }
 
     const margem = faturamento > 0 ? (lucroTotal / faturamento) * 100 : cfg.margin || 60;
-    const ticket = orders.length > 0 ? faturamento / orders.length : 0;
+    const ticket = periodFilteredOrders.length > 0 ? faturamento / periodFilteredOrders.length : 0;
 
     return {
       totalFaturamento: faturamento,
@@ -198,21 +270,21 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
       unpaidOrdersCount: unpCount,
       unpaidEntreguesCount: unpEntregues,
     };
-  }, [orders, recipes, ingredients, cfg]);
+  }, [periodFilteredOrders, recipes, ingredients, cfg]);
 
-  // Unpaid orders list
+  // Unpaid orders list for period
   const unpaidOrders = useMemo(() => {
-    return orders.filter((o) => {
+    return periodFilteredOrders.filter((o) => {
       const val = o.valor || 0;
       const sin = o.sinal || 0;
       const restante = Math.max(0, val - sin);
       return !o.pago && val > 0 && restante > 0;
     });
-  }, [orders]);
+  }, [periodFilteredOrders]);
 
   const paidOrders = useMemo(() => {
-    return orders.filter((o) => o.pago && (o.valor || 0) > 0);
-  }, [orders]);
+    return periodFilteredOrders.filter((o) => o.pago && (o.valor || 0) > 0);
+  }, [periodFilteredOrders]);
 
   const filteredDisplayOrders = useMemo(() => {
     if (receberFilter === 'entregues') {
@@ -559,6 +631,115 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Period Filter Bar */}
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-3 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4.5 h-4.5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <span className="text-xs font-bold text-stone-900 dark:text-stone-100 font-display">
+            Filtro de Período do Dashboard:
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 w-full sm:w-auto p-1 bg-stone-100 dark:bg-stone-950 rounded-xl border border-stone-200/80 dark:border-stone-800/80">
+          <button
+            type="button"
+            onClick={() => setPeriodFilter('dia')}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              periodFilter === 'dia'
+                ? 'bg-amber-600 text-white shadow-2xs'
+                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
+            }`}
+          >
+            Dia (Hoje)
+          </button>
+          <button
+            type="button"
+            onClick={() => setPeriodFilter('semana')}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              periodFilter === 'semana'
+                ? 'bg-amber-600 text-white shadow-2xs'
+                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
+            }`}
+          >
+            Semana
+          </button>
+          <button
+            type="button"
+            onClick={() => setPeriodFilter('mes')}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              periodFilter === 'mes'
+                ? 'bg-amber-600 text-white shadow-2xs'
+                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
+            }`}
+          >
+            Mês Atual
+          </button>
+          <button
+            type="button"
+            onClick={() => setPeriodFilter('total')}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              periodFilter === 'total'
+                ? 'bg-amber-600 text-white shadow-2xs'
+                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
+            }`}
+          >
+            Total (Histórico)
+          </button>
+          <button
+            type="button"
+            onClick={() => setPeriodFilter('personalizado')}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              periodFilter === 'personalizado'
+                ? 'bg-amber-600 text-white shadow-2xs'
+                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
+            }`}
+          >
+            Personalizado
+          </button>
+        </div>
+      </div>
+
+      {/* Expanded Custom Date Picker Controls (when 'personalizado' is active) */}
+      {periodFilter === 'personalizado' && (
+        <div className="bg-amber-500/5 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 rounded-2xl p-3.5 sm:p-4 animate-in fade-in duration-200 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 bg-white dark:bg-stone-900 px-3 py-1.5 rounded-xl border border-stone-200 dark:border-stone-800 shadow-2xs flex-1 sm:flex-none">
+                <span className="text-stone-500 dark:text-stone-400 font-medium">Data inicial:</span>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="bg-transparent text-stone-900 dark:text-stone-100 font-bold outline-none cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5 bg-white dark:bg-stone-900 px-3 py-1.5 rounded-xl border border-stone-200 dark:border-stone-800 shadow-2xs flex-1 sm:flex-none">
+                <span className="text-stone-500 dark:text-stone-400 font-medium">Data final:</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="bg-transparent text-stone-900 dark:text-stone-100 font-bold outline-none cursor-pointer"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleApplyCustomPeriod}
+                className="px-4 py-2 text-xs font-extrabold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-xs transition-all active:scale-[0.98] cursor-pointer min-h-[38px]"
+              >
+                Aplicar filtro
+              </button>
+            </div>
+
+            <div className="text-xs font-semibold text-amber-900 dark:text-amber-200 bg-amber-100/80 dark:bg-amber-950/80 px-3 py-1.5 rounded-xl border border-amber-200 dark:border-amber-800/80">
+              📅 Período aplicado: <strong>{formatDatePtBR(appliedCustomStartDate)}</strong> até <strong>{formatDatePtBR(appliedCustomEndDate)}</strong> ({periodFilteredOrders.length} encomenda(s))
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 5 Main Financial KPI Cards (including A Receber) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
@@ -1373,6 +1554,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
           recipes={recipes}
           ingredients={ingredients}
           cfg={cfg}
+          initialPeriod={periodFilter}
+          initialStartDate={appliedCustomStartDate}
+          initialEndDate={appliedCustomEndDate}
           onToast={onToast}
         />
       )}

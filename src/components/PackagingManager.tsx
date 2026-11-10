@@ -22,7 +22,7 @@ import {
   Truck,
   FileText,
 } from 'lucide-react';
-import { PackagingItem, PackagingMovement, PackagingCategory } from '../types';
+import { PackagingItem, PackagingMovement, PackagingCategory, Recipe } from '../types';
 import { formatCurrency, formatNumber } from '../utils/calculations';
 import { uid } from '../utils/storage';
 import { NumericInput } from './NumericInput';
@@ -30,6 +30,7 @@ import { NumericInput } from './NumericInput';
 interface PackagingManagerProps {
   packagings: PackagingItem[];
   movements: PackagingMovement[];
+  recipes?: Recipe[];
   onSavePackaging: (item: PackagingItem) => void;
   onDeletePackaging: (id: string) => void;
   onAddMovement: (movement: PackagingMovement) => void;
@@ -51,6 +52,7 @@ export const PACKAGING_CATEGORIES: PackagingCategory[] = [
 export const PackagingManager: React.FC<PackagingManagerProps> = ({
   packagings,
   movements,
+  recipes = [],
   onSavePackaging,
   onDeletePackaging,
   onAddMovement,

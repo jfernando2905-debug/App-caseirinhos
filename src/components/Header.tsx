@@ -73,121 +73,29 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Zone 2: Mobile Action Buttons */}
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-          {/* Cloud Auth / Sync Status Icon Button */}
-          <div className="relative">
-            {user ? (
-              <button
-                onClick={() => setUserMenuOpen((prev) => !prev)}
-                className="w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-xl bg-stone-800 hover:bg-stone-700 border border-stone-700/80 flex items-center justify-center text-stone-200 transition-all active:scale-[0.96] shadow-xs relative"
-                title={`Conectado como ${user.email}`}
-                aria-label="Menu do Usuário"
-              >
-                {user.photoURL ? (
-                  <img
-                    src={user.photoURL}
-                    alt={user.displayName || 'Usuário'}
-                    className="w-4.5 h-4.5 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-4.5 h-4.5 rounded-full bg-amber-600 text-white font-bold flex items-center justify-center text-[9px]">
-                    {(user.displayName || user.email || 'U')[0].toUpperCase()}
-                  </div>
-                )}
-                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-stone-900" title="Sincronizado na Nuvem" />
-              </button>
-            ) : (
-              <button
-                onClick={onOpenAuth}
-                className="w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-xl bg-stone-800 hover:bg-stone-700 border border-amber-500/40 hover:border-amber-500 flex items-center justify-center text-amber-400 hover:text-amber-300 transition-all active:scale-[0.96] shadow-xs"
-                title="Sincronizar na Nuvem (Firebase)"
-                aria-label="Sincronizar na Nuvem"
-              >
-                <Cloud className="w-4 h-4 text-amber-400" />
-              </button>
-            )}
-
-            {/* Dropdown menu for mobile top bar user menu */}
-            {user && userMenuOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setUserMenuOpen(false)}
-                />
-                <div className="absolute right-0 mt-2 w-60 bg-stone-900 border border-stone-800 rounded-2xl shadow-xl z-50 p-3 space-y-2.5">
-                  <div className="border-b border-stone-800 pb-2">
-                    <p className="text-xs font-semibold text-white truncate">
-                      {user.displayName || 'Confeitaria'}
-                    </p>
-                    <p className="text-[10px] text-stone-400 truncate">
-                      {user.email}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2 px-2 py-1.5 bg-stone-800/80 rounded-xl text-[11px] text-emerald-400 font-medium">
-                    <CloudCheck className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
-                    <span>Nuvem Conectada</span>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      signOut();
-                    }}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 rounded-xl transition-colors border border-rose-900/30"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    <span>Sair da conta</span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Dark/Light mode toggle */}
+        {/* Zone 2: Mobile Action Buttons (Fixed Nova Encomenda + Hamburger Menu) */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Fixed "Nova Encomenda" Button always visible */}
           <button
-            onClick={onToggleTheme}
-            className="w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-xl bg-stone-800 hover:bg-stone-700 border border-stone-700/80 flex items-center justify-center text-stone-300 hover:text-white transition-all active:scale-[0.96] shadow-xs"
-            title={theme === 'dark' ? 'Mudar para Modo Claro' : 'Mudar para Modo Escuro'}
-            aria-label={theme === 'dark' ? 'Mudar para Modo Claro' : 'Mudar para Modo Escuro'}
+            type="button"
+            onClick={onNewOrder}
+            className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-xs transition-all active:scale-[0.97] flex items-center gap-1.5 shrink-0 cursor-pointer"
+            title="Criar Nova Encomenda"
+            aria-label="Criar Nova Encomenda"
           >
-            {theme === 'dark' ? (
-              <Sun className="w-4 h-4 text-amber-400" />
-            ) : (
-              <Moon className="w-4 h-4 text-stone-300" />
-            )}
+            <Plus className="w-4 h-4 shrink-0" />
+            <span className="font-bold">Nova Encomenda</span>
           </button>
-
-          {/* Contextual Action Button */}
-          {activeTab === 'orders' ? (
-            <button
-              onClick={onNewOrder}
-              className="h-8 sm:h-8.5 px-2 sm:px-2.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-xs transition-all active:scale-[0.98] flex items-center gap-1 shrink-0"
-              title="Nova Encomenda"
-            >
-              <Plus className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden min-[380px]:inline">Encomenda</span>
-            </button>
-          ) : (
-            <button
-              onClick={onNewRecipe}
-              className="h-8 sm:h-8.5 px-2 sm:px-2.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-xs transition-all active:scale-[0.98] flex items-center gap-1 shrink-0"
-              title="Nova Receita"
-            >
-              <Plus className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden min-[380px]:inline">Receita</span>
-            </button>
-          )}
 
           {/* Hamburger Menu Button */}
           <button
+            type="button"
             onClick={() => setMobileMenuOpen(true)}
-            className="w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-xl bg-stone-800 hover:bg-stone-700 border border-stone-700/80 flex items-center justify-center text-stone-200 hover:text-white transition-all active:scale-[0.96] shadow-xs"
+            className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-stone-800 hover:bg-stone-700 border border-stone-700/80 flex items-center justify-center text-stone-200 hover:text-white transition-all active:scale-[0.96] shadow-xs cursor-pointer"
             title="Abrir menu de opções"
             aria-label="Abrir menu de opções"
           >
-            <Menu className="w-4 h-4" />
+            <Menu className="w-4.5 h-4.5" />
           </button>
         </div>
       </div>
@@ -287,6 +195,29 @@ export const Header: React.FC<HeaderProps> = ({
                     </button>
                   </div>
                 )}
+              </div>
+
+              {/* Appearance / Time-Based Theme Switcher */}
+              <div className="p-3 bg-stone-800/50 border border-stone-800 rounded-2xl space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-stone-300">Aparência do Sistema</span>
+                  <span className="text-[10px] text-amber-400 font-semibold bg-amber-950/60 border border-amber-800/60 px-2 py-0.5 rounded-md">
+                    Auto por Horário
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onToggleTheme}
+                  className="w-full flex items-center justify-between p-2 bg-stone-800 hover:bg-stone-700/80 text-stone-200 rounded-xl text-xs font-semibold border border-stone-700/60 transition-colors min-h-[38px] cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    {theme === 'dark' ? <Moon className="w-4 h-4 text-amber-400" /> : <Sun className="w-4 h-4 text-amber-400" />}
+                    <span>{theme === 'dark' ? 'Modo Escuro Ativo' : 'Modo Claro Ativo'}</span>
+                  </div>
+                  <span className="text-[10px] text-stone-400">
+                    {theme === 'dark' ? '18h às 06h' : '06h às 18h'}
+                  </span>
+                </button>
               </div>
 
               {/* Quick Actions */}

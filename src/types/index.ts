@@ -99,6 +99,8 @@ export interface Order {
   adicionais?: string; // Descrição de itens adicionais (topo de bolo, vela, morangos extras, etc.)
   valorAdicionais?: number; // Preço/valor dos adicionais (R$)
   criadoEm?: number;
+  stockDeducted?: boolean; // Se a baixa automática no estoque já foi realizada para esta encomenda
+  stockDeductedAt?: number; // Timestamp da baixa de estoque
 }
 
 export type PurchaseStatus = 'pendente' | 'comprado' | 'recebido';

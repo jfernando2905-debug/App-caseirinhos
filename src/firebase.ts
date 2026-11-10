@@ -50,12 +50,17 @@ export interface FirestoreErrorInfo {
   };
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
-  const rawMsg = String((error as any)?.message || error || '').toLowerCase();
-  const isAbort = (error as any)?.name === 'AbortError' || (error as any)?.code === 'cancelled' || rawMsg.includes('abort');
-  
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): void {
+  const rawMsg = String((error as any)?.message || (error as any)?.name || error || '').toLowerCase();
+  const isAbort =
+    (error as any)?.name === 'AbortError' ||
+    (error as any)?.code === 'cancelled' ||
+    rawMsg.includes('abort') ||
+    rawMsg.includes('signal is aborted');
+
   if (isAbort) {
-    throw error;
+    console.debug(`Firestore operation aborted on ${path}`);
+    return;
   }
 
   const errInfo: FirestoreErrorInfo = {

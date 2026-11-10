@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   Printer,
@@ -14,6 +14,7 @@ import {
 import { Order, Recipe } from '../types';
 import { formatDatePtBR } from '../utils/dateUtils';
 import { formatCurrency } from '../utils/calculations';
+import { generateProductionGridPdf } from '../utils/orderShare';
 
 interface ProductionGridPreviewModalProps {
   isOpen: boolean;
@@ -33,7 +34,27 @@ export const ProductionGridPreviewModal: React.FC<ProductionGridPreviewModalProp
   onToast,
 }) => {
   // Production completion checklist state (orderId -> boolean or itemKey -> boolean)
-  const [completedItems, setCompletedItems] = useState<Record<string, boolean>>({});
+  const [completedItems, setCompletedItems] = useState<Record<string, boolean>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('custo-receitas-production-checklist');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {
+        console.error('Error loading production checklist:', e);
+      }
+    }
+    return {};
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('custo-receitas-production-checklist', JSON.stringify(completedItems));
+      } catch (e) {
+        console.error('Error saving production checklist:', e);
+      }
+    }
+  }, [completedItems]);
 
   const openOrders = useMemo(() => {
     return (orders || []).filter((o) => (o.status || 'pendente') !== 'entregue');
@@ -58,7 +79,12 @@ export const ProductionGridPreviewModal: React.FC<ProductionGridPreviewModalProp
   };
 
   const handleExportPdf = () => {
-    window.print();
+    try {
+      generateProductionGridPdf(openOrders, completedItems);
+      if (onToast) onToast('Grade de produção exportada em PDF com sucesso!');
+    } catch (err: any) {
+      if (onToast) onToast('Erro ao exportar PDF: ' + err.message, 'error');
+    }
   };
 
   if (!isOpen) return null;
@@ -243,10 +269,18 @@ export const ProductionGridPreviewModal: React.FC<ProductionGridPreviewModalProp
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-stone-800 dark:text-stone-200 bg-white dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700 rounded-xl transition-all min-h-[40px] cursor-pointer"
+            >
+              <Printer className="w-4 h-4 text-stone-600 dark:text-stone-400" />
+              <span>Imprimir</span>
+            </button>
+
+            <button
+              onClick={handleExportPdf}
               className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-xs transition-all active:scale-[0.98] min-h-[40px] cursor-pointer"
             >
-              <Printer className="w-4 h-4" />
-              <span>Imprimir / PDF da Grade</span>
+              <FileDown className="w-4 h-4" />
+              <span>Exportar PDF</span>
             </button>
           </div>
         </div>

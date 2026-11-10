@@ -17,10 +17,29 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   public static getDerivedStateFromError(error: Error): State {
+    const msg = error?.message || error?.name || String(error);
+    if (
+      msg.includes('AbortError') ||
+      msg.includes('signal is aborted') ||
+      msg.includes('The user aborted a request') ||
+      msg.includes('WebSocket closed without opened')
+    ) {
+      return { hasError: false, error: null };
+    }
     return { hasError: true, error };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    const msg = error?.message || error?.name || String(error);
+    if (
+      msg.includes('AbortError') ||
+      msg.includes('signal is aborted') ||
+      msg.includes('The user aborted a request') ||
+      msg.includes('WebSocket closed without opened')
+    ) {
+      this.setState({ hasError: false, error: null });
+      return;
+    }
     console.error('ErrorBoundary caught an error:', error, errorInfo);
   }
 
